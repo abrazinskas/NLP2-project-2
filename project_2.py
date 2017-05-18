@@ -1,18 +1,21 @@
+import numpy as np
 import lib.libitg as libitg
 from lib.libitg import Symbol, Terminal, Nonterminal, Span
 from lib.libitg import Rule, CFG
 from lib.libitg import FSA
-from misc.helper import load_lexicon, scan_line, featurize_edges
+from misc.helper import load_lexicon, scan_line, featurize_edges, load_ibm1_probs
 
 # Data files.
 LEXICON = "data/top_5"
+IBM1_PROBS = "data/lexicon"
 TRAINING_DATA = "data/data/training.zh-en"
 
 # Hyperparameters.
 max_insertions = 4
 max_length = None
 
-# Load the lexicon and create the source CFG.
+# Load the IBM 1 probabilities, the lexicon and create the source CFG.
+ibm1_probs = load_ibm1_probs(IBM1_PROBS)
 lexicon = load_lexicon(LEXICON, anything_into_eps=True, eps_into_anything=True)
 src_cfg = libitg.make_source_side_itg(lexicon)
 
@@ -47,7 +50,7 @@ with open(TRAINING_DATA) as f:
             continue
 
         # Featurize Dixy.
-        features_Dixy = featurize_edges(Dixy, src_fsa)
+        features_Dixy = featurize_edges(Dixy, src_fsa, ibm1_probs)
 
         # Break after a single training instance for now.
         for edge, fmap in features_Dixy.items():
