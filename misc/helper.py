@@ -1,4 +1,7 @@
 from collections import defaultdict
+from lib.libitg import Terminal
+
+from .features import featurize_edge
 
 def load_lexicon(lexicon_file, anything_into_eps=True, eps_into_anything=True):
     lexicon = defaultdict(set)
@@ -26,3 +29,10 @@ def scan_line(line):
     chinese = split_line[0]
     english = split_line[1][:-1]
     return (chinese, english)
+
+def featurize_edges(forest, src_fsa, sparse_del=False, sparse_ins=False, \
+        sparse_trans=False, eps=Terminal('-EPS-')) -> dict:
+    edge2fmap = dict()
+    for edge in forest:
+        edge2fmap[edge] = featurize_edge(edge, src_fsa, eps, sparse_del, sparse_ins, sparse_trans)
+    return edge2fmap

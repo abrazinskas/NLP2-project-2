@@ -2,7 +2,7 @@ import lib.libitg as libitg
 from lib.libitg import Symbol, Terminal, Nonterminal, Span
 from lib.libitg import Rule, CFG
 from lib.libitg import FSA
-from misc.helper import load_lexicon, scan_line
+from misc.helper import load_lexicon, scan_line, featurize_edges
 
 # Data files.
 LEXICON = "data/top_5"
@@ -46,6 +46,13 @@ with open(TRAINING_DATA) as f:
         if len(Dix) == 0 or len(Dixy) == 0:
             continue
 
+        # Featurize Dixy.
+        features_Dixy = featurize_edges(Dixy, src_fsa, True, True, True)
+
         # Break after a single training instance for now.
+        for edge, fmap in features_Dixy.items():
+            print(edge)
+            print(fmap)
+            print()
         print("Length D_i(x): %d, length D_i(x, y): %d" % (len(Dix), len(Dixy)))
         break
