@@ -30,9 +30,8 @@ def scan_line(line):
     english = split_line[1][:-1]
     return (chinese, english)
 
-def featurize_edges(forest, src_fsa, sparse_del=False, sparse_ins=False, \
-        sparse_trans=False, eps=Terminal('-EPS-')) -> dict:
+def featurize_edges(forest, src_fsa, eps=Terminal('-EPS-')):
     edge2fmap = dict()
     for edge in forest:
-        edge2fmap[edge] = featurize_edge(edge, src_fsa, eps, sparse_del, sparse_ins, sparse_trans)
+        edge2fmap[edge] = featurize_edge(edge, src_fsa, eps=eps)
     return edge2fmap

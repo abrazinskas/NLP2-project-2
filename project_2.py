@@ -47,7 +47,7 @@ with open(TRAINING_DATA) as f:
             continue
 
         # Featurize Dixy.
-        features_Dixy = featurize_edges(Dixy, src_fsa, True, True, True)
+        features_Dixy = featurize_edges(Dixy, src_fsa)
 
         # Break after a single training instance for now.
         for edge, fmap in features_Dixy.items():
