@@ -1,28 +1,51 @@
-import libitg
-from libitg import Symbol, Terminal, Nonterminal, Span
-from libitg import Rule, CFG
-from libitg import FSA
-from collections import defaultdict
+import lib.libitg as libitg
+from lib.libitg import Symbol, Terminal, Nonterminal, Span
+from lib.libitg import Rule, CFG
+from lib.libitg import FSA
+from misc.helper import load_lexicon, scan_line
 
-def load_lexicon(lexicon_file):
-    lexicon = defaultdict(set)
-    with open(lexicon_file) as f:
-        for line in f:
-            line_split = line.split(" -> ")
-            assert len(line_split) == 2
-            source = line_split[0]
-            targets = line_split[1].split()
-            lexicon[source].update(targets + ["-EPS-"])
-    return lexicon
+# Data files.
+LEXICON = "data/top_5"
+TRAINING_DATA = "data/data/training.zh-en"
 
-lexicon = load_lexicon("f_to_e.txt")
+# Hyperparameters.
+max_insertions = 4
+max_length = None
+
+# Load the lexicon and create the source CFG.
+lexicon = load_lexicon(LEXICON, anything_into_eps=True, eps_into_anything=True)
 src_cfg = libitg.make_source_side_itg(lexicon)
-src_fsa = libitg.make_fsa('爸爸 宏伟')
-src_forest = libitg.earley(src_cfg, src_fsa, \
-               start_symbol=Nonterminal('S'), \
-               sprime_symbol=Nonterminal("D(x)"))
-Dx = libitg.make_target_side_itg(src_forest, lexicon)
-tgt_fsa = libitg.make_fsa('magnificent dad')
-Dxy = libitg.earley(Dx, tgt_fsa,
-                    start_symbol=Nonterminal("D(x)"), 
-                    sprime_symbol=Nonterminal('D(x,y)'))
+
+# Training.
+with open(TRAINING_DATA) as f:
+    for line in f:
+        chinese, english = scan_line(line)
+
+        # Skip training sentences longer than some max_length if max_length is set.
+        if max_length is not None and len(english) > max_length:
+            continue
+
+        # Create an FSA for the source sentence and parse the source sentence.
+        src_fsa = libitg.make_fsa(chinese)
+        _Dx = libitg.earley(src_cfg, src_fsa, start_symbol=Nonterminal('S'), \
+                sprime_symbol=Nonterminal("D(x)"), clean=True)
+
+        # Create an FSA that allows for some maximum amount of insertions of -EPS-.
+        # Create D_i(x) such that it has this constraint on the number of insertions.
+        eps_count_fsa = libitg.InsertionConstraint(max_insertions)
+        _Dix = libitg.earley(_Dx, eps_count_fsa, start_symbol=Nonterminal('D(x)'), \
+                sprime_symbol=Nonterminal('D_n(x)'), eps_symbol=None, clean=True)
+        Dix = libitg.make_target_side_itg(_Dix, lexicon)
+
+        # Create a target FSA and D_i(x, y)
+        tgt_fsa = libitg.make_fsa(english)
+        Dixy = libitg.earley(Dix, tgt_fsa, start_symbol=Nonterminal("D_n(x)"), \
+                sprime_symbol=Nonterminal('D(x,y)'), clean=True)
+
+        # Continue in the case the parse for this training sentence is empty.
+        if len(Dix) == 0 or len(Dixy) == 0:
+            continue
+
+        # Break after a single training instance for now.
+        print("Length D_i(x): %d, length D_i(x, y): %d" % (len(Dix), len(Dixy)))
+        break
