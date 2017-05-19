@@ -23,12 +23,12 @@ lexicon = load_lexicon(lexicon_file)
 
 # Start training.
 log_info("Starting training.")
-for Dix, Dixy, chinese, english in load_parse_trees(parse_tree_dir):
+for Dx, Dxy, chinese, english in load_parse_trees(parse_tree_dir):
 
     # Create the source FSA.
     src_fsa = libitg.make_fsa(chinese)
 
     # Featurize Dixy.
-    features_Dixy = featurize_edges(Dixy, src_fsa, ibm1_probs)
+    features_Dxy = featurize_edges(Dxy, src_fsa, ibm1_probs)
 
 log_info("Done training.")

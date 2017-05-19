@@ -7,7 +7,7 @@ from time import strftime, localtime
 
 from .features import featurize_edge
 
-def load_lexicon(lexicon_file):
+def load_lexicon(lexicon_file, top_n=5):
     lexicon = defaultdict(set)
     with open(lexicon_file) as f:
         for line in f:
@@ -15,6 +15,7 @@ def load_lexicon(lexicon_file):
             assert len(line_split) == 2
             source = line_split[0]
             targets = line_split[1].split()
+            targets = targets[:top_n]
             targets = targets + ["-EPS-"] if source != "-EPS-" else targets
             lexicon[source].update(targets)
     return lexicon
