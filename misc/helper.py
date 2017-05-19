@@ -1,9 +1,13 @@
+import os
+import dill as pickle
+
 from collections import defaultdict
 from lib.libitg import Terminal
+from time import strftime, localtime
 
 from .features import featurize_edge
 
-def load_lexicon(lexicon_file, anything_into_eps=True, eps_into_anything=True):
+def load_lexicon(lexicon_file):
     lexicon = defaultdict(set)
     with open(lexicon_file) as f:
         for line in f:
@@ -11,17 +15,8 @@ def load_lexicon(lexicon_file, anything_into_eps=True, eps_into_anything=True):
             assert len(line_split) == 2
             source = line_split[0]
             targets = line_split[1].split()
-            targets = targets + ["-EPS-"] if anything_into_eps else targets
+            targets = targets + ["-EPS-"] if source != "-EPS-" else targets
             lexicon[source].update(targets)
-
-    if eps_into_anything:
-        english_types = set()
-        for translations in lexicon.values():
-            english_types |= translations
-        if "-EPS-" in english_types:
-            english_types.remove("-EPS-")
-        lexicon["-EPS-"].update(english_types)
-
     return lexicon
 
 # Returns a dictionary containing the IBM 1 lexical probabilities in both directions.
@@ -56,3 +51,32 @@ def featurize_edges(forest, src_fsa, ibm1_probs, eps=Terminal('-EPS-')):
     for edge in forest:
         edge2fmap[edge] = featurize_edge(edge, src_fsa, ibm1_probs, eps=eps)
     return edge2fmap
+
+def log_info(log_string):
+    time_string = strftime("%H:%M:%S", localtime())
+    print("%s [INFO]: %s" % (time_string, log_string))
+
+def load_parse_trees(parse_tree_dir):
+    dx_dir = os.path.join(parse_tree_dir, "Dx")
+    dxy_dir = os.path.join(parse_tree_dir, "Dxy")
+    english_filename = os.path.join(parse_tree_dir, "english")
+    chinese_filename = os.path.join(parse_tree_dir, "chinese")
+    with open(english_filename) as en_file, open(chinese_filename) as ch_file:
+        idx = 0
+        for en_sentence, ch_sentence in zip(en_file, ch_file):
+            Dx_file = os.path.join(dx_dir, str(idx))
+            Dxy_file = os.path.join(dxy_dir, str(idx))
+
+            # Load Dx.
+            Dx = None
+            with open(Dx_file, "rb") as f:
+                Dx = pickle.load(f)
+
+            # Load Dxy.
+            Dxy = None
+            with open(Dxy_file, "rb") as f:
+                Dxy = pickle.load(f)
+
+            # Yield (Dx, Dxy).
+            idx += 1
+            yield (Dx, Dxy, ch_sentence[:-1], en_sentence[:-1])
