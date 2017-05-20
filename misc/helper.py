@@ -5,8 +5,6 @@ from collections import defaultdict
 from lib.libitg import Terminal
 from time import strftime, localtime
 
-from .features import featurize_edge
-
 def load_lexicon(lexicon_file, top_n=5):
     lexicon = defaultdict(set)
     with open(lexicon_file) as f:
@@ -46,12 +44,6 @@ def scan_line(line):
     chinese = split_line[0]
     english = split_line[1][:-1]
     return (chinese, english)
-
-def featurize_edges(forest, src_fsa, ibm1_probs, eps=Terminal('-EPS-')):
-    edge2fmap = dict()
-    for edge in forest:
-        edge2fmap[edge] = featurize_edge(edge, src_fsa, ibm1_probs, eps=eps)
-    return edge2fmap
 
 def log_info(log_string):
     time_string = strftime("%H:%M:%S", localtime())

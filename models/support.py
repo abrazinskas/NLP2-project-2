@@ -3,6 +3,8 @@ from lib.libitg import Rule, CFG, FSA, Terminal
 from toposort import toposort
 import numpy as np
 
+EPS = 1e-5
+
 def inside_algorithm(forest: CFG, tsort: list, edge_weights: dict) -> dict:
     """Returns the inside weight of each node"""
     I = {}  # inside values
@@ -36,12 +38,12 @@ def outside_algorithm(forest: CFG, tsort:list, edge_weights: dict, inside: dict)
         temp_outside = 0
         for rule in forest._rules_by_rhs[node]:
             k = O[rule._lhs] * edge_weights[rule]  # notation like in pseudocode
-            temp_prod = np.exp(1)  # perform computations in log scale so we will sum instead of mult.
+            temp_prod = np.exp(1.)  # perform computations in log scale so we will sum instead of mult.
             for rhs_node in rule._rhs:
                 if rhs_node == node:
                     continue
                 temp_prod += np.exp(inside[rhs_node])
-            temp_outside += k * np.log(temp_prod)
+            temp_outside += k * np.log(temp_prod + EPS)
         O[node] = temp_outside
     return O
 
@@ -57,7 +59,7 @@ def expected_feature_vector(forest: CFG, inside: dict, outside: dict, edge_featu
         for feature_name, feature_value in features.items():
             if feature_name not in phi:
                 phi[feature_name] = 0
-            phi[feature_name] += np.log(k) * feature_value
+            phi[feature_name] += np.log(k + EPS) * feature_value
     return phi
 
 

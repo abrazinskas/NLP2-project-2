@@ -2,7 +2,7 @@ import pickle
 import os
 from pickle import UnpicklingError
 import lib.libitg as libitg
-from misc.features import featurize_edge
+from misc.features_old import featurize_edge
 from models.support import inside_algorithm, outside_algorithm, top_sort, expected_feature_vector
 import numpy as np
 
@@ -11,8 +11,8 @@ np.random.seed(1)
 
 class CRF():
 
-    def __init__(self, ibm1_probs, learning_rate=1e-4):
-        self.wmap = {}  # initialization is performed as a feature function is observed
+    def __init__(self, ibm1_probs, learning_rate=1e-8):
+        self.parameters = {}  # initialization is performed as a feature function is observed
         self.ibm1_probs = ibm1_probs
         self.learning_rate = learning_rate
 
@@ -25,19 +25,26 @@ class CRF():
         Dnx_outside = self.compute_outside_values(Dnx, src_fsa, Dnx_inside)
         Dxy_outside = self.compute_outside_values(Dxy, src_fsa, Dxy_inside)
 
-        Dnx_edge_features = lambda rule: self.get_feature(rule, src_fsa)
-        Dxy_edge_features = lambda rule: self.get_feature(rule, src_fsa)
+        edge_features = lambda rule: self.get_feature(rule, src_fsa)
 
-        first_expectation = expected_feature_vector(forest=Dnx, inside=Dnx_inside, outside=Dnx_outside,
-                                                    edge_features=Dnx_edge_features)
-        second_expectation = expected_feature_vector(forest=Dxy, inside=Dxy_inside, outside=Dxy_outside,
-                                                     edge_features=Dxy_edge_features)
+        first_expectation = expected_feature_vector(forest=Dxy, inside=Dxy_inside, outside=Dxy_outside,
+                                                     edge_features=edge_features)
+        # seems to be a problem here!
+        # TODO: fix it! 
+        second_expectation = expected_feature_vector(forest=Dnx, inside=Dnx_inside, outside=Dnx_outside,
+                                                    edge_features=edge_features)
+
+        # print("-------------")
+        # print("length of first expected feature vector is %d" % len(first_expectation))
+        # print("length of second expected feature vector is %d" % len(second_expectation))
 
         # 2. update parameters
-        # TODO: here I stopped last time
-        pass
-
-
+        for feature_name in second_expectation.keys():
+            derivative = - second_expectation[feature_name]
+            if feature_name in first_expectation:
+                derivative += first_expectation[feature_name]
+            current_weight_value = self.get_parameter(feature_name)
+            self.parameters[feature_name] = current_weight_value + self.learning_rate * derivative
 
 
     def compute_loglikelihood(self, source_sentence, Dxy, Dnx):
@@ -81,9 +88,9 @@ class CRF():
         Returns a parameter that corresponds to the feature_name. If parameter has not be initialized previously, it will
         initialize it.
         """
-        if feature_name not in self.wmap:
-            self.wmap[feature_name] = np.random.normal()
-        return self.wmap[feature_name]
+        if feature_name not in self.parameters:
+            self.parameters[feature_name] = np.random.normal()
+        return self.parameters[feature_name]
 
     def save_parameters(self, output_dir, name='params.pkl'):
         """
