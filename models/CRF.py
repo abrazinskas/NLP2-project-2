@@ -3,7 +3,7 @@ import os
 from pickle import UnpicklingError
 import lib.libitg as libitg
 from misc.features_old import featurize_edge
-from models.support import inside_algorithm, outside_algorithm, top_sort, expected_feature_vector
+from misc.inside_outside import inside_algorithm, outside_algorithm, top_sort, expected_feature_vector
 import numpy as np
 
 np.random.seed(1)
