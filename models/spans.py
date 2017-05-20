@@ -28,4 +28,3 @@ def get_bispans(symbol: Span):
     s, start2, end2 = symbol.obj()  # this unwraps the target or length annotation
     _, start1, end1 = s.obj()  # this unwraps the source annotation
     return (start1, end1), (start2, end2)
-
