@@ -2,15 +2,49 @@ import numpy as np
 from collections import defaultdict
 from lib.libitg import Symbol, Terminal, Nonterminal, Span, Rule, FSA
 
-from .spans import get_bispans, get_target_word, get_source_word
+from .spans import get_target_word, get_source_word
+
+class Features():
+
+    def __init__(self):
+        self.edge2fmap = dict()
+
+    def _extract_rule_repr(self, rule):
+        lhs = rule.lhs
+        rhs = list(rule.rhs)
+
+        # Remove bispans from the lhs.
+        if isinstance(rule.lhs, Span):
+            s, _, _ = rule.lhs.obj()
+            if isinstance(s, Span) or s == Nonterminal("D(x)"):
+                lhs = s
+
+        # And the same for the rhs.
+        for i in range(len(rule.rhs)):
+            if isinstance(rule.rhs[i], Span):
+                s, _, _ = rule.rhs[i].obj()
+                if isinstance(s, Span):
+                        rhs[i] = s
+
+        new_rule = Rule(lhs, tuple(rhs))
+        return new_rule
+
+    def add(self, edge, fmap):
+        key = self._extract_rule_repr(edge)
+        self.edge2fmap[key] = fmap
+
+    def get(self, edge):
+        key = self._extract_rule_repr(edge)
+        return self.edge2fmap[key]
 
 def featurize_edges(forest, src_fsa, ibm1_probs, eps=Terminal('-EPS-')):
-    edge2fmap = dict()
+    features = Features()
     for edge in forest:
-        edge2fmap[edge] = featurize_edge(edge, src_fsa, ibm1_probs, eps=eps)
-    return edge2fmap
+        features.add(edge, featurize_edge(edge, src_fsa, ibm1_probs, eps=eps))
+        # edge2fmap[edge] = featurize_edge(edge, src_fsa, ibm1_probs, eps=eps)
+    return features
 
-def featurize_edge(edge, src_fsa, ibm1_probs, eps=Terminal('-EPS-'), bispans=False):
+def featurize_edge(edge, src_fsa, ibm1_probs, eps=Terminal('-EPS-')):
     """
     Featurises an edge given
         * rule and spans
@@ -22,13 +56,10 @@ def featurize_edge(edge, src_fsa, ibm1_probs, eps=Terminal('-EPS-'), bispans=Fal
 
     # Check if the edge represents a binary or unary rule.
     if len(edge.rhs) == 2:
-        featurize_binary_rule(edge, src_fsa, fmap, bispans)
-    else:
-        symbol = edge.rhs[0]
-
-        # Check if the rule is a terminal rule or a start rule.
-        if symbol.is_terminal():
-            featurize_terminal_rule(edge, src_fsa, fmap, ibm1_probs, eps, bispans)
+        featurize_binary_rule(edge, src_fsa, fmap)
+    else: # Check the type of rule that we're dealing with.
+        if edge.rhs[0].is_terminal():
+            featurize_terminal_rule(edge, src_fsa, fmap, ibm1_probs, eps)
         elif edge.lhs.obj()[0] != Nonterminal("X"):
             featurize_start_rule(edge, src_fsa, fmap)
         else:
@@ -48,43 +79,30 @@ def featurize_upgrade_rule(rule, src_fsa, fmap):
         elif rhs_symbol == Nonterminal("T"):
             fmap["type:upgrade_t"] += 1.0
 
-def featurize_binary_rule(rule, src_fsa, fmap, bispans):
+def featurize_binary_rule(rule, src_fsa, fmap):
     fmap['type:binary'] += 1.0
 
     # here we could have sparse features of the source string as a function of spans being concatenated
-    if bispans:
-        (ls1, ls2), (lt1, lt2) = get_bispans(rule.rhs[0])  # left of RHS
-        (rs1, rs2), (rt1, rt2) = get_bispans(rule.rhs[1])  # right of RHS
+    lhs_symbol, lhs_start, lhs_end = rule.lhs.obj()
+    rhs_symbol_1, rhs_start_1, rhs_end_1 = rule.rhs[0].obj()
+    rhs_symbol_2, rhs_start_2, rhs_end_2 = rule.rhs[1].obj()
 
-        if ls1 == ls2:
-            fmap['binary:deletion_left_src_child'] += 1.0
-        if rs1 == rs2:
-            fmap['binary:deletion_right_src_child'] += 1.0
-        if ls2 == rs1:
-            fmap['binary:monotone'] += 1.0
-        if ls1 == rs2:
-            fmap['binary:inverted'] += 1.0
-    else:
-        lhs_symbol, lhs_start, lhs_end = rule.lhs.obj()
-        rhs_symbol_1, rhs_start_1, rhs_end_1 = rule.rhs[0].obj()
-        rhs_symbol_2, rhs_start_2, rhs_end_2 = rule.rhs[1].obj()
+    if lhs_symbol == Nonterminal("D"):
+        fmap["binary:recursive_deletion"] += 1.0
+    elif lhs_symbol == Nonterminal("X"):
 
-        if lhs_symbol == Nonterminal("D"):
-            fmap["binary:recursive_deletion"] += 1.0
-        elif lhs_symbol == Nonterminal("X"):
+        # Check for invertion.
+        if lhs_start == rhs_start_2:
+            fmap["binary:inverted"] += 1.0
+        else:
+            fmap["binary:monotone"] += 1.0
 
-            # Check for invertion.
-            if lhs_start == rhs_start_2:
-                fmap["binary:inverted"] += 1.0
-            else:
-                fmap["binary:monotone"] += 1.0
-
-        # TODO sparser features
+    # TODO sparser features
 
 def featurize_start_rule(rule, src_fsa, fmap):
     fmap['top'] += 1.0
 
-def featurize_terminal_rule(rule, src_fsa, fmap, ibm1_probs, eps, bispans):
+def featurize_terminal_rule(rule, src_fsa, fmap, ibm1_probs, eps):
     fmap["type:terminal"] += 1.0
 
     lhs_symbol, lhs_start, lhs_end = rule.lhs.obj()
