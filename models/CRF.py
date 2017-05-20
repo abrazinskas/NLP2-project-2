@@ -1,83 +1,114 @@
-from libitg import Rule, CFG, FSA, Terminal
-from models.feature_functions import get_bispans, get_source_word, get_target_word
-from collections import defaultdict
+import pickle
+import os
+from pickle import UnpicklingError
+import lib.libitg as libitg
+from misc.features import featurize_edge
+from models.support import inside_algorithm, outside_algorithm, top_sort, expected_feature_vector
+import numpy as np
+
+np.random.seed(1)
 
 
-def featurize_edges(forest, src_fsa,
-                    sparse_del=False, sparse_ins=False, sparse_trans=False,
-                    eps=Terminal('-EPS-')) -> dict:
-    edge2fmap = dict()
-    for edge in forest:
-        edge2fmap[edge] = simple_features(edge, src_fsa, eps, sparse_del, sparse_ins, sparse_trans)
-    return edge2fmap
+class CRF():
+
+    def __init__(self, ibm1_probs, learning_rate=1e-4):
+        self.wmap = {}  # initialization is performed as a feature function is observed
+        self.ibm1_probs = ibm1_probs
+        self.learning_rate = learning_rate
+
+    def train(self, source_sentence, Dxy, Dnx):
+        src_fsa = libitg.make_fsa(source_sentence)
+
+        # 1. compute expectations
+        Dnx_inside, _ = self.compute_inside_values(Dnx, src_fsa)
+        Dxy_inside, _ = self.compute_inside_values(Dxy, src_fsa)
+        Dnx_outside = self.compute_outside_values(Dnx, src_fsa, Dnx_inside)
+        Dxy_outside = self.compute_outside_values(Dxy, src_fsa, Dxy_inside)
+
+        Dnx_edge_features = lambda rule: self.get_feature(rule, src_fsa)
+        Dxy_edge_features = lambda rule: self.get_feature(rule, src_fsa)
+
+        first_expectation = expected_feature_vector(forest=Dnx, inside=Dnx_inside, outside=Dnx_outside,
+                                                    edge_features=Dnx_edge_features)
+        second_expectation = expected_feature_vector(forest=Dxy, inside=Dxy_inside, outside=Dxy_outside,
+                                                     edge_features=Dxy_edge_features)
+
+        # 2. update parameters
+        # TODO: here I stopped last time
+        pass
 
 
-def simple_features(edge: Rule, src_fsa: FSA, eps=Terminal('-EPS-'),
-                    sparse_del=False, sparse_ins=False, sparse_trans=False) -> dict:
-    """
-    Featurises an edge given
-        * rule and spans
-        * src sentence as an FSA
-        * TODO: target sentence length n
-        * TODO: extract IBM1 dense features
-    crucially, note that the target sentence y is not available!
-    """
-    fmap = defaultdict(float)
-    if len(edge.rhs) == 2:  # binary rule
-        fmap['type:binary'] += 1.0
-        # here we could have sparse features of the source string as a function of spans being concatenated
-        (ls1, ls2), (lt1, lt2) = get_bispans(edge.rhs[0])  # left of RHS
-        (rs1, rs2), (rt1, rt2) = get_bispans(edge.rhs[1])  # right of RHS
-        # TODO: double check these, assign features, add some more
-        if ls1 == ls2:  # deletion of source left child
-            pass
-        if rs1 == rs2:  # deletion of source right child
-            pass
-        if ls2 == rs1:  # monotone
-            pass
-        if ls1 == rs2:  # inverted
-            pass
-    else:  # unary
-        symbol = edge.rhs[0]
-        if symbol.is_terminal():  # terminal rule
-            fmap['type:terminal'] += 1.0
-            # we could have IBM1 log probs for the traslation pair or ins/del
-            (s1, s2), (t1, t2) = get_bispans(symbol)
-            if symbol.root() == eps:  # symbol.root() gives us a Terminal free of annotation
-                # for sure there is a source word
-                src_word = get_source_word(src_fsa, s1, s2)
-                fmap['type:deletion'] += 1.0
-                # dense versions (for initial development phase)
-                # TODO: use IBM1 prob
-                #ff['ibm1:del:logprob'] +=
-                # sparse version
-                if sparse_del:
-                    fmap['del:%s' % src_word] += 1.0
-            else:
-                # for sure there's a target word
-                tgt_word = get_target_word(symbol)
-                if s1 == s2:  # has not consumed any source word, must be an eps rule
-                    fmap['type:insertion'] += 1.0
-                    # dense version
-                    # TODO: use IBM1 prob
-                    #ff['ibm1:ins:logprob'] +=
-                    # sparse version
-                    if sparse_ins:
-                        fmap['ins:%s' % tgt_word] += 1.0
-                else:
-                    # for sure there's a source word
-                    src_word = get_source_word(src_fsa, s1, s2)
-                    fmap['type:translation'] += 1.0
-                    # dense version
-                    # TODO: use IBM1 prob
-                    #ff['ibm1:x2y:logprob'] +=
-                    #ff['ibm1:y2x:logprob'] +=
-                    # sparse version
-                    if sparse_trans:
-                        fmap['trans:%s/%s' % (src_word, tgt_word)] += 1.0
-        else:  # S -> X
-            fmap['top'] += 1.0
-    return fmap
 
-def weight_function(edge, fmap, wmap) -> float:
-    pass  # dot product of fmap and wmap  (working in log-domain)
+
+    def compute_loglikelihood(self, source_sentence, Dxy, Dnx):
+        src_fsa = libitg.make_fsa(source_sentence)
+        _, log_Zxy = self.compute_inside_values(Dxy, src_fsa)
+        _, log_Znx = self.compute_inside_values(Dnx, src_fsa)
+        return log_Zxy - log_Znx
+
+    def weight_function(self, edge, src_fsa) -> float:
+        features = self.get_feature(edge, src_fsa)
+        dot_product = 0
+        for feature_name in features.keys():
+            dot_product += features[feature_name] * self.get_parameter(feature_name)
+        return dot_product
+
+    def compute_inside_values(self, grammar, src_fsa):
+        """
+        Wrapper function that computes inside values, returns both inside values and log normalizer
+        """
+        sorted_nodes = top_sort(grammar)
+        root_node = sorted_nodes[-1]
+        edge_weights = {rule: self.weight_function(rule, src_fsa) for rule in grammar._rules}
+        inside_values = inside_algorithm(grammar, sorted_nodes, edge_weights=edge_weights)
+        return inside_values, inside_values[root_node]
+
+    def compute_outside_values(self, grammar, src_fsa, inside_values):
+        """
+        Wrapper function that computes outside values
+        """
+        # TODO: make a separate function that computes both inside and outside to avoid sorting and computing
+        # TODO: edge values multiple times.
+        sorted_nodes = top_sort(grammar)
+        edge_weights = {rule: self.weight_function(rule, src_fsa) for rule in grammar._rules}
+        return outside_algorithm(grammar, sorted_nodes, edge_weights, inside_values)
+
+    def get_feature(self, edge, src_fsa):
+        return featurize_edge(edge=edge, src_fsa=src_fsa, ibm1_probs=self.ibm1_probs)
+
+    def get_parameter(self, feature_name):
+        """
+        Returns a parameter that corresponds to the feature_name. If parameter has not be initialized previously, it will
+        initialize it.
+        """
+        if feature_name not in self.wmap:
+            self.wmap[feature_name] = np.random.normal()
+        return self.wmap[feature_name]
+
+    def save_parameters(self, output_dir, name='params.pkl'):
+        """
+        Saves parameters via pickle to a output_dir under specified name. In order for function to work, the class
+        has to have self.params_to_save list of params name that is desired to save, e.g. ["theta", "gamma"]
+        """
+        print('writing parameters to %s folder' % output_dir)
+        f = open(os.path.join(output_dir, name), 'wb')
+        for param_name in self.params_to_save:
+            pickle.dump([param_name, getattr(self, param_name)], f)
+        f.close()
+        print('done')
+
+    def load_parameters(self, file_path):
+        """
+        Loads params from pickle saved file and assigns to attributes.
+        The function will work for the saving made by save_parameters only
+        """
+        f = open(file_path, 'rb')
+        print('loading parameters')
+        while True:
+            try:
+                name, param = pickle.load(f)
+                setattr(self, name, param)  # assuming that all parameters are shared variables
+            except (EOFError, UnpicklingError):
+                break
+        f.close()
+        print('done')
