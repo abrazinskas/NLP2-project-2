@@ -16,7 +16,7 @@ class CRF():
         self.ibm1_probs = ibm1_probs
         self.learning_rate = learning_rate
 
-    def train(self, source_sentence, Dxy, Dnx):
+    def compute_gradient(self, source_sentence, Dxy, Dnx):
         src_fsa = libitg.make_fsa(source_sentence)
 
         # 1. compute expectations
@@ -25,26 +25,27 @@ class CRF():
         Dnx_outside = self.compute_outside_values(Dnx, src_fsa, Dnx_inside)
         Dxy_outside = self.compute_outside_values(Dxy, src_fsa, Dxy_inside)
 
-        edge_features = lambda rule: self.get_feature(rule, src_fsa)
+        edge_features = lambda rule: self.get_features(rule, src_fsa)
 
         first_expectation = expected_feature_vector(forest=Dxy, inside=Dxy_inside, outside=Dxy_outside,
                                                      edge_features=edge_features)
-        # seems to be a problem here!
-        # TODO: fix it! 
         second_expectation = expected_feature_vector(forest=Dnx, inside=Dnx_inside, outside=Dnx_outside,
                                                     edge_features=edge_features)
-
-        # print("-------------")
-        # print("length of first expected feature vector is %d" % len(first_expectation))
-        # print("length of second expected feature vector is %d" % len(second_expectation))
-
+        derivatives = {}
         # 2. update parameters
         for feature_name in second_expectation.keys():
             derivative = - second_expectation[feature_name]
             if feature_name in first_expectation:
                 derivative += first_expectation[feature_name]
+            derivatives[feature_name] = derivative
+        return derivatives
+
+    def train(self, source_sentence, Dxy, Dnx):
+        gradient = self.compute_gradient(source_sentence, Dxy, Dnx)
+        for feature_name, derivative in gradient.items():
             current_weight_value = self.get_parameter(feature_name)
-            self.parameters[feature_name] = current_weight_value + self.learning_rate * derivative
+            # TODO: should be + instead of - , remove after debugging is done.
+            self.parameters[feature_name] = current_weight_value - self.learning_rate * derivative
 
 
     def compute_loglikelihood(self, source_sentence, Dxy, Dnx):
@@ -54,8 +55,8 @@ class CRF():
         return log_Zxy - log_Znx
 
     def weight_function(self, edge, src_fsa) -> float:
-        features = self.get_feature(edge, src_fsa)
-        dot_product = 0
+        features = self.get_features(edge, src_fsa)
+        dot_product = 0.
         for feature_name in features.keys():
             dot_product += features[feature_name] * self.get_parameter(feature_name)
         return dot_product
@@ -80,7 +81,7 @@ class CRF():
         edge_weights = {rule: self.weight_function(rule, src_fsa) for rule in grammar._rules}
         return outside_algorithm(grammar, sorted_nodes, edge_weights, inside_values)
 
-    def get_feature(self, edge, src_fsa):
+    def get_features(self, edge, src_fsa):
         return featurize_edge(edge=edge, src_fsa=src_fsa, ibm1_probs=self.ibm1_probs)
 
     def get_parameter(self, feature_name):
@@ -89,7 +90,7 @@ class CRF():
         initialize it.
         """
         if feature_name not in self.parameters:
-            self.parameters[feature_name] = np.random.normal()
+            self.parameters[feature_name] = np.random.normal(0, 1.)
         return self.parameters[feature_name]
 
     def save_parameters(self, output_dir, name='params.pkl'):
