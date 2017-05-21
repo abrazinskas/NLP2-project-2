@@ -69,29 +69,32 @@ class Featurizer():
             else:
                 fmap["binary:monotone"] += 1.0
 
-                # Use the inside span of X rules to represent phrases, we use
-                # average representations of word vectors for this.
-                src_inside_phrase = get_phrase(src_fsa, lhs_start, lhs_end)
-                assert len(src_inside_phrase) > 0
-                inside_repr = np.zeros(self.embeddings_ch.dim())
-                for word in src_inside_phrase:
-                    inside_repr += self.embeddings_ch.get(word)
+            # Use the inside span of X rules to represent phrases, we use
+            # average representations of word vectors for this.
+            src_inside_phrase = get_phrase(src_fsa, lhs_start, lhs_end)
+            assert len(src_inside_phrase) > 0
+            inside_repr = np.zeros(self.embeddings_ch.dim())
+            for word in src_inside_phrase:
+                inside_repr += self.embeddings_ch.get(word)
 
-                for dim, val in enumerate(inside_repr):
-                    fmap["inside-phrase-%d" % dim] = val
+            for dim, val in enumerate(inside_repr):
+                fmap["inside-phrase-%d" % dim] = val
 
-                # Add a representation for the outside phrase.
-                src_outside_phrase = get_phrase(src_fsa, 0, lhs_start) + \
-                        get_phrase(src_fsa, lhs_end, src_fsa.nb_states())
-                if len(src_outside_phrase) > 0:
-                    outside_repr = np.zeros(self.embeddings_ch.dim())
-                    for word in src_outside_phrase:
-                        outside_repr += self.embeddings_ch.get(word)
+            # Add a representation for the outside phrase.
+            src_outside_phrase = get_phrase(src_fsa, 0, lhs_start) + \
+                    get_phrase(src_fsa, lhs_end, src_fsa.nb_states())
+            if len(src_outside_phrase) > 0:
+                outside_repr = np.zeros(self.embeddings_ch.dim())
+                for word in src_outside_phrase:
+                    outside_repr += self.embeddings_ch.get(word)
 
-                    for dim, val in enumerate(outside_repr):
-                        fmap["outside-phrase-%d" % dim] = val
+                for dim, val in enumerate(outside_repr):
+                    fmap["outside-phrase-%d" % dim] = val
 
-        # TODO sparser features
+            # Add skip-gram features for the rhs.
+            rhs_phrase = get_phrase(src_fsa, rhs_start_1, rhs_end_1) + \
+                    get_phrase(src_fsa, rhs_start_2, rhs_end_2)
+            self._add_skipgram_features(rhs_phrase, fmap)
 
     def _featurize_start_rule(self, rule, src_fsa, fmap):
         fmap["top"] += 1.0
@@ -154,3 +157,8 @@ class Featurizer():
             src_class = self.embeddings_ch.get_cluster_id(src_word)
             tgt_class = self.embeddings_en.get_cluster_id(tgt_word)
             fmap["trans-class:%d/%d" % (src_class, tgt_class)] += 1.0
+
+    def _add_skipgram_features(self, phrase, fmap):
+        for i in range(len(phrase)):
+            for j in range(i+1, len(phrase)):
+                fmap["skip-gram:%s/%s" % (phrase[i], phrase[j])] += 1.0
