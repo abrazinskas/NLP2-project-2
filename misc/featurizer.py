@@ -114,6 +114,10 @@ class Featurizer():
             # Sparse deletion feature for specific words.
             fmap["del:%s" % src_word] += 1.0
 
+            # Sparse insertion feature for word classes.
+            src_class = self.embeddings_ch.get_cluster_id(src_word)
+            fmap["del-class:%d" % src_class] += 1.0
+
         elif lhs_symbol == Nonterminal("I"):
             # Insertion of a target word.
             fmap["type:insertion"] += 1.0
