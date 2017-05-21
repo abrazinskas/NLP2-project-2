@@ -5,7 +5,7 @@ from lib.libitg import Symbol, Terminal, Nonterminal, Span
 from lib.libitg import Rule, CFG
 from lib.libitg import FSA
 from misc.helper import load_ibm1_probs, log_info, load_parse_trees
-from models.features import featurize_edges, featurize_edge
+from misc.features import featurize_edges, featurize_edge
 
 if len(sys.argv) < 3:
     print("Use: python parse_training_data.py <parse_tree_dir> <ibm1_probs>")

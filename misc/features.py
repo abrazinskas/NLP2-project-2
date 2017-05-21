@@ -111,6 +111,7 @@ def featurize_terminal_rule(rule, src_fsa, fmap, ibm1_probs, eps):
     if lhs_symbol == Nonterminal("D"):
         # Deletion of a source word.
         fmap["type:deletion"] += 1.0
+        fmap["target-len"] -= 1.0
 
         # IBM 1 deletion probabilities.
         src_word = get_source_word(src_fsa, lhs_start, lhs_end)
@@ -121,9 +122,9 @@ def featurize_terminal_rule(rule, src_fsa, fmap, ibm1_probs, eps):
 
     elif lhs_symbol == Nonterminal("I"):
         # Insertion of a target word.
-        tgt_word = get_target_word(rhs_symbol)
-
         fmap["type:insertion"] += 1.0
+        fmap["target-len"] += 1.0
+        tgt_word = get_target_word(rhs_symbol)
 
         # IBM 1 insertion probability.
         fmap["ibm1:ins:logprob"] += np.log(ibm1_probs[("-EPS-", tgt_word)] + 1e-10)
@@ -134,6 +135,7 @@ def featurize_terminal_rule(rule, src_fsa, fmap, ibm1_probs, eps):
     elif lhs_symbol == Nonterminal("T"):
         # Translation of a source word into a target word.
         fmap["type:translation"] += 1.0
+        fmap["target-len"] += 1.0
         src_word = get_source_word(src_fsa, lhs_start, lhs_end)
         tgt_word = get_target_word(rhs_symbol)
 
