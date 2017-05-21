@@ -5,7 +5,7 @@ from lib.libitg import Symbol, Terminal, Nonterminal, Span
 from lib.libitg import Rule, CFG
 from lib.libitg import FSA
 from misc.helper import load_ibm1_probs, log_info, load_parse_trees
-from misc.features import featurize_edges, featurize_edge
+from misc.featurizer import Featurizer
 from misc.embeddings import WordEmbeddings
 
 if len(sys.argv) < 4:
@@ -30,15 +30,14 @@ log_info("Loading word embeddings...")
 embeddings_ch = WordEmbeddings(word_embeddings_file_ch, word_clusters_file_ch)
 embeddings_en = WordEmbeddings(word_embeddings_file_en, word_clusters_file_en)
 
+# Create the featurizer.
+featurizer = Featurizer(ibm1_probs)
+
 # Start training.
 log_info("Starting training.")
 for Dx, Dxy, chinese, english in load_parse_trees(parse_tree_dir):
 
-    # Create the source FSA.
-    src_fsa = libitg.make_fsa(chinese)
-
-    # Featurize Dx, and add one rule that only occurs in Dxy.
-    features = featurize_edges(Dx, src_fsa, ibm1_probs)
-    features.add(Dxy._rules[-1], featurize_edge(Dxy._rules[-1], src_fsa, ibm1_probs))
+    # Compute features for this training instance.
+    features = featurizer.featurize_parse_trees(Dx, Dxy, chinese)
 
 log_info("Done training.")
