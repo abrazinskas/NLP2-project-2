@@ -41,7 +41,7 @@ class Featurizer():
 
     def _featurize_upgrade_rule(self, rule, src_fsa, fmap):
         lhs_symbol, lhs_start, lhs_end = rule.lhs.obj()
-        rhs_symbol, rhs_start, rhs_end = rule.rhs[0].obj() # TODO spans prob not needed
+        rhs_symbol, rhs_start, rhs_end = rule.rhs[0].obj()
 
         if lhs_symbol == Nonterminal("X"):
             if rhs_symbol == Nonterminal("T"):
@@ -94,7 +94,15 @@ class Featurizer():
             # Add skip-gram features for the rhs.
             rhs_phrase = get_phrase(src_fsa, rhs_start_1, rhs_end_1) + \
                     get_phrase(src_fsa, rhs_start_2, rhs_end_2)
-            self._add_skipgram_features(rhs_phrase, fmap)
+            for i in range(len(rhs_phrase)):
+                for j in range(i+1, len(rhs_phrase)):
+                    fmap["skip-gram:%s/%s" % (rhs_phrase[i], rhs_phrase[j])] += 1.0
+
+            # Add skip-gram word class features for the rhs.
+            rhs_word_classes = [self.embeddings_ch.get_cluster_id(word) for word in rhs_phrase]
+            for i in range(len(rhs_word_classes)):
+                for j in range(i+1, len(rhs_word_classes)):
+                    fmap["skip-gram:word-classes:%d/%d" % (rhs_word_classes[i], rhs_word_classes[j])] += 1.0
 
     def _featurize_start_rule(self, rule, src_fsa, fmap):
         fmap["top"] += 1.0
@@ -103,7 +111,7 @@ class Featurizer():
         fmap["type:terminal"] += 1.0
 
         lhs_symbol, lhs_start, lhs_end = rule.lhs.obj()
-        rhs_symbol, rhs_start, rhs_end = rule.rhs[0].obj() # TODO spans prob not needed
+        rhs_symbol, rhs_start, rhs_end = rule.rhs[0].obj()
 
         if lhs_symbol == Nonterminal("D"):
             # Deletion of a source word.
@@ -157,8 +165,3 @@ class Featurizer():
             src_class = self.embeddings_ch.get_cluster_id(src_word)
             tgt_class = self.embeddings_en.get_cluster_id(tgt_word)
             fmap["trans-class:%d/%d" % (src_class, tgt_class)] += 1.0
-
-    def _add_skipgram_features(self, phrase, fmap):
-        for i in range(len(phrase)):
-            for j in range(i+1, len(phrase)):
-                fmap["skip-gram:%s/%s" % (phrase[i], phrase[j])] += 1.0
