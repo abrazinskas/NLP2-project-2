@@ -10,6 +10,7 @@ class WordEmbeddings():
         self.embeddings = embeddings
         self.word2id = { w:i for (i, w) in enumerate(words) }
         self.digits_re = re.compile("[0-9]", re.UNICODE)
+        self.emb_dim = embeddings.shape[1]
 
     # Returns a word embedding for a given word.
     def get(self, word):
@@ -21,6 +22,9 @@ class WordEmbeddings():
         word = self._normalize(word)
         word_id = self.word2id[word]
         return self.id2cluster[word_id]
+
+    def dim(self):
+        return self.emb_dim
 
     # Loads the embeddings files with Python 3 compatibility.
     def _load_embeddings(self, filename):

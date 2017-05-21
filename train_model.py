@@ -31,7 +31,7 @@ embeddings_ch = WordEmbeddings(word_embeddings_file_ch, word_clusters_file_ch)
 embeddings_en = WordEmbeddings(word_embeddings_file_en, word_clusters_file_en)
 
 # Create the featurizer.
-featurizer = Featurizer(ibm1_probs)
+featurizer = Featurizer(ibm1_probs, embeddings_ch, embeddings_en)
 
 # Start training.
 log_info("Starting training.")

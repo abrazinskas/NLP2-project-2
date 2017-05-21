@@ -3,13 +3,15 @@ from collections import defaultdict
 from lib.libitg import Symbol, Terminal, Nonterminal, Span, Rule, FSA
 
 import lib.libitg as libitg
-from .spans import get_target_word, get_source_word
+from .spans import get_target_word, get_source_word, get_phrase
 from .features import Features
 
 class Featurizer():
 
-    def __init__(self, ibm1_probs):
+    def __init__(self, ibm1_probs, embeddings_ch, embeddings_en):
         self.ibm1_probs = ibm1_probs
+        self.embeddings_ch = embeddings_ch
+        self.embeddings_en = embeddings_en
 
     def featurize_parse_trees(self, Dx, Dxy, x):
         src_fsa = libitg.make_fsa(x)
@@ -67,10 +69,32 @@ class Featurizer():
             else:
                 fmap["binary:monotone"] += 1.0
 
+                # Use the inside span of X rules to represent phrases, we use
+                # average representations of word vectors for this.
+                src_inside_phrase = get_phrase(src_fsa, lhs_start, lhs_end)
+                assert len(src_inside_phrase) > 0
+                inside_repr = np.zeros(self.embeddings_ch.dim())
+                for word in src_inside_phrase:
+                    inside_repr += self.embeddings_ch.get(word)
+
+                for dim, val in enumerate(inside_repr):
+                    fmap["inside-phrase-%d" % dim] = val
+
+                # Add a representation for the outside phrase.
+                src_outside_phrase = get_phrase(src_fsa, 0, lhs_start) + \
+                        get_phrase(src_fsa, lhs_end, src_fsa.nb_states())
+                if len(src_outside_phrase) > 0:
+                    outside_repr = np.zeros(self.embeddings_ch.dim())
+                    for word in src_outside_phrase:
+                        outside_repr += self.embeddings_ch.get(word)
+
+                    for dim, val in enumerate(outside_repr):
+                        fmap["outside-phrase-%d" % dim] = val
+
         # TODO sparser features
 
     def _featurize_start_rule(self, rule, src_fsa, fmap):
-        fmap['top'] += 1.0
+        fmap["top"] += 1.0
 
     def _featurize_terminal_rule(self, rule, src_fsa, fmap):
         fmap["type:terminal"] += 1.0

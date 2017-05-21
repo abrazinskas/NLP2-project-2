@@ -7,6 +7,10 @@ def get_source_word(fsa: FSA, origin: int, destination: int) -> str:
     assert len(labels) == 1, 'Use this function only when you know the path is unambiguous, found %d labels %s for (%d, %d)' % (len(labels), labels, origin, destination)
     return labels[0]
 
+def get_phrase(fsa, origin, destination):
+    labels = [list(fsa.labels(i, i+1)) for i in range(origin, destination)]
+    return [l[0] for l in labels if len(l) > 0]
+
 def get_target_word(symbol: Symbol):
     """Returns the python string underlying a certain terminal (thus unwrapping all span annotations)"""
     if not symbol.is_terminal():
