@@ -104,6 +104,10 @@ class Featurizer():
                 for j in range(i+1, len(rhs_word_classes)):
                     fmap["skip-gram:word-classes:%d/%d" % (rhs_word_classes[i], rhs_word_classes[j])] += 1.0
 
+            # Add source span length features.
+            source_span_len = lhs_end - lhs_start
+            fmap["source-span-len-%d" % source_span_len] += 1.0
+
     def _featurize_start_rule(self, rule, src_fsa, fmap):
         fmap["top"] += 1.0
 
