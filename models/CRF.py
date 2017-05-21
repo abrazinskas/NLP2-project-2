@@ -2,7 +2,7 @@ import pickle
 import os
 from pickle import UnpicklingError
 import lib.libitg as libitg
-from misc.features_old import featurize_edge
+from misc.features import featurize_edge
 from misc.inside_outside import inside_algorithm, outside_algorithm, top_sort, expected_feature_vector
 import numpy as np
 
@@ -44,8 +44,7 @@ class CRF():
         gradient = self.compute_gradient(source_sentence, Dxy, Dnx)
         for feature_name, derivative in gradient.items():
             current_weight_value = self.get_parameter(feature_name)
-            # TODO: should be + instead of - , remove after debugging is done.
-            self.parameters[feature_name] = current_weight_value - self.learning_rate * derivative
+            self.parameters[feature_name] = current_weight_value + self.learning_rate * derivative
 
 
     def compute_loglikelihood(self, source_sentence, Dxy, Dnx):
