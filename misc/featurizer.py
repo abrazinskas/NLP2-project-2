@@ -141,3 +141,8 @@ class Featurizer():
 
             # Sparse word translation features.
             fmap["trans:%s/%s" % (src_word, tgt_word)] += 1.0
+
+            # Sparse word class translation features.
+            src_class = self.embeddings_ch.get_cluster_id(src_word)
+            tgt_class = self.embeddings_en.get_cluster_id(tgt_word)
+            fmap["trans-class:%d/%d" % (src_class, tgt_class)] += 1.0
