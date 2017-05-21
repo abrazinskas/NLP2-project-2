@@ -126,6 +126,10 @@ class Featurizer():
             # Sparse insertion feature for specific target words.
             fmap["ins:%s" % tgt_word] += 1.0
 
+            # Sparse insertion feature for word classes.
+            tgt_class = self.embeddings_en.get_cluster_id(tgt_word)
+            fmap["ins-class:%d" % tgt_class]
+
         elif lhs_symbol == Nonterminal("T"):
             # Translation of a source word into a target word.
             fmap["type:translation"] += 1.0
