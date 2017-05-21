@@ -1,20 +1,26 @@
 import pickle
-import numpy
 import re
 
 class WordEmbeddings():
 
-    def __init__(self, embeddings_file):
+    def __init__(self, embeddings_file, cluster_file):
         words, embeddings = self._load_embeddings(embeddings_file)
+        self.id2cluster = self._load_clusters(cluster_file)
         self.words = words
         self.embeddings = embeddings
         self.word2id = { w:i for (i, w) in enumerate(words) }
         self.digits_re = re.compile("[0-9]", re.UNICODE)
 
-    # Returns a word embedding for the word.
+    # Returns a word embedding for a given word.
     def get(self, word):
         word = self._normalize(word)
         return self.embeddings[self.word2id[word]]
+
+    # Returns the cluster index for a given word.
+    def get_cluster_id(self, word):
+        word = self._normalize(word)
+        word_id = self.word2id[word]
+        return self.id2cluster[word_id]
 
     # Loads the embeddings files with Python 3 compatibility.
     def _load_embeddings(self, filename):
@@ -23,6 +29,13 @@ class WordEmbeddings():
             unpickler.encoding = "latin1"
             words, embeddings = unpickler.load()
         return words, embeddings
+
+    def _load_clusters(self, filename):
+        id2cluster = dict()
+        with open(filename, "r") as f:
+            for i, line in enumerate(f):
+                id2cluster[i] = int(line)
+        return id2cluster
 
     # Based on http://nbviewer.jupyter.org/gist/aboSamoor/6046170.
     def _normalize(self, word):
@@ -37,7 +50,6 @@ class WordEmbeddings():
 
         # Unknown words map to <UNK>.
         if not word in self.word2id:
-            print("Unked!!")
             return "<UNK>"
 
         return word
