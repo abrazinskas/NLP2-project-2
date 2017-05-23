@@ -8,7 +8,7 @@ from misc.embeddings import WordEmbeddings
 
 # parameters
 learning_rate = 1e-6
-epochs = 3
+epochs = 5
 batch_size = 50
 
 # paths
@@ -19,6 +19,7 @@ word_embeddings_ch_file_path = os.path.join(embeddings_dir, "zh.pkl")
 word_embeddings_en_file_path = os.path.join(embeddings_dir, "en.pkl")
 word_clusters_ch_file_path = os.path.join(embeddings_dir, "clusters.zh")
 word_clusters_en_file_path = os.path.join(embeddings_dir, "clusters.en")
+translations_file_path = "output/translations.txt"  # output translations will be in format <source, target, translation>
 
 # loading extra params for the model
 ibm1_probs = load_ibm1_probs(ibm1_probs_file_path)
@@ -26,7 +27,6 @@ embeddings_ch = WordEmbeddings(word_embeddings_ch_file_path, word_clusters_ch_fi
 embeddings_en = WordEmbeddings(word_embeddings_en_file_path, word_clusters_en_file_path)
 
 featurizer = Featurizer(ibm1_probs, embeddings_ch, embeddings_en)
-
 
 crf = CRF(learning_rate=learning_rate)
 
@@ -56,5 +56,20 @@ for epoch in range(1, epochs+1):
         print("log-likelihood after %f" % ll_after)
         print("-------------------------------")
 
-        # rules, terminals = crf.decode(source_sentence=chinese, Dnx=Dx)
+
+# perform inference and save in a file
+translations_file = open(translations_file_path, 'w')
+print('doing inference')
+for j, batch in enumerate(create_batches(parse_tree_dir, batch_size=batch_size)):
+    # load featurizer ( TODO: make a simple function call in the class itself )
+    crf.features = featurizer.featurize_parse_trees_batch(batch)
+    for Dx, Dxy, chinese, english in batch:
+        rules, terminals = crf.decode(source_sentence=chinese, Dnx=Dx)
+        translations_file.write("\t".join([english, chinese, " ".join(terminals)])+"\n")
+translations_file.close()
+print('done')
+
+
+
+
 
