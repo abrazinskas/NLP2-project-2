@@ -22,6 +22,47 @@ def inside_algorithm(forest: CFG, tsort: list, edge_weights: dict) -> dict:
         I[node] = np.log(temp_inside)
     return I
 
+def inside_algorithm_normal(forest: CFG, tsort: list, edge_weights: dict) -> dict:
+    """Returns the inside weight of each node """
+    I = {}  # inside values in log space
+    for node in tsort:
+        if node.is_terminal():
+            I[node] = 1.
+            continue
+        I[node] = 0.
+        # get rules where node appears as head
+        for rule in forest._rules_by_lhs[node]:
+            weight = np.exp(edge_weights[rule])  # factor in log space
+            inner_prod = weight
+            for rhs_node in rule.rhs:
+                inner_prod *= I[rhs_node]
+            I[node] += inner_prod
+    return I
+
+
+def viterbi_decoding(forest: CFG, tsort: list, edge_weights: dict) -> dict:
+    """Returns derivations that form them argmax tree """
+    I = {}
+    I_a = {}  # back-pointer
+    for node in tsort:
+        if node.is_terminal():
+            I[node] = np.log(1.)
+            continue
+        temp_max = np.float('-inf')
+        temp_arg_max = None
+        # get rules where node appears as head
+        for rule in forest._rules_by_lhs[node]:
+            weight = edge_weights[rule]  # factor in log space
+            inner_sum = weight
+            for rhs_node in rule.rhs:
+                inner_sum += I[rhs_node]
+            if inner_sum > temp_max:
+                temp_max = inner_sum
+                temp_arg_max = rule
+        I[node] = temp_max
+        I_a[node] = temp_arg_max
+    return I, I_a
+
 
 def outside_algorithm(forest: CFG, tsort:list, edge_weights: dict, inside: dict) -> dict:
     """Returns the outside weight of each node in log space"""

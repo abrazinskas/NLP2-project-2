@@ -1,9 +1,10 @@
 import pickle
 import os
+import re
 from pickle import UnpicklingError
 import lib.libitg as libitg
-from misc.features import featurize_edge
-from misc.inside_outside import inside_algorithm, outside_algorithm, top_sort, expected_feature_vector
+from lib.formal import Span
+from misc.inside_outside import inside_algorithm, outside_algorithm, top_sort, expected_feature_vector, viterbi_decoding
 import numpy as np
 
 np.random.seed(1)
@@ -11,9 +12,9 @@ np.random.seed(1)
 
 class CRF():
 
-    def __init__(self, ibm1_probs, learning_rate=1e-8):
+    def __init__(self, learning_rate=1e-8):
         self.parameters = {}  # initialization is performed as a feature function is observed
-        self.ibm1_probs = ibm1_probs
+        self.features = None
         self.learning_rate = learning_rate
 
     def compute_gradient(self, source_sentence, Dxy, Dnx):
@@ -40,16 +41,48 @@ class CRF():
             derivatives[feature_name] = derivative
         return derivatives
 
+    def train_batch(self, batch):
+        """
+        Training on a batch of instances with SGD, notice that we divide gradients by the number of data-points
+        :param batch: (Dnx, Dxy, source, target) list
+        """
+        gradients_acc = {}
+        # accumulate gradients
+        for Dnx, Dxy, source_sentence, target_sentence in batch:
+            gradient = self.compute_gradient(source_sentence, Dxy, Dnx)
+            for feature_name, derivative in gradient.items():
+                if feature_name not in gradients_acc:
+                    gradients_acc[feature_name] = 0.
+                gradients_acc[feature_name] += derivative
+
+        # update
+        for feature_name, derivative in gradients_acc.items():
+            current_weight_value = self.get_parameter(feature_name)
+            self.parameters[feature_name] = current_weight_value + self.learning_rate * derivative/len(batch)
+
     def train(self, source_sentence, Dxy, Dnx):
+        """
+        Training of a single instance of data with SGD
+        """
         gradient = self.compute_gradient(source_sentence, Dxy, Dnx)
         for feature_name, derivative in gradient.items():
             current_weight_value = self.get_parameter(feature_name)
             self.parameters[feature_name] = current_weight_value + self.learning_rate * derivative
 
+    def compute_loglikelihood_batch(self, batch):
+        """
+        Computes log-likelihood on a batch of data, notice that we divide by the number of data-points
+        :param batch: (Dnx, Dxy, source, target) list
+        """
+        loglikelihood = 0.
+        for Dnx, Dxy, source_sentence, target_sentence in batch:
+            loglikelihood += self.compute_loglikelihood(source_sentence, Dxy, Dnx)
+        return loglikelihood/len(batch)
+
 
     def compute_loglikelihood(self, source_sentence, Dxy, Dnx):
         src_fsa = libitg.make_fsa(source_sentence)
-        _, log_Zxy = self.compute_inside_values(Dxy, src_fsa)
+        a, log_Zxy = self.compute_inside_values(Dxy, src_fsa)
         _, log_Znx = self.compute_inside_values(Dnx, src_fsa)
         return log_Zxy - log_Znx
 
@@ -64,9 +97,8 @@ class CRF():
         """
         Wrapper function that computes inside values, returns both inside values and log normalizer
         """
-        sorted_nodes = top_sort(grammar)
+        sorted_nodes, edge_weights = self.__sort_node_and_compute_weights(grammar, src_fsa)
         root_node = sorted_nodes[-1]
-        edge_weights = {rule: self.weight_function(rule, src_fsa) for rule in grammar._rules}
         inside_values = inside_algorithm(grammar, sorted_nodes, edge_weights=edge_weights)
         return inside_values, inside_values[root_node]
 
@@ -76,12 +108,52 @@ class CRF():
         """
         # TODO: make a separate function that computes both inside and outside to avoid sorting and computing
         # TODO: edge values multiple times.
-        sorted_nodes = top_sort(grammar)
-        edge_weights = {rule: self.weight_function(rule, src_fsa) for rule in grammar._rules}
+        sorted_nodes, edge_weights = self.__sort_node_and_compute_weights(grammar, src_fsa)
         return outside_algorithm(grammar, sorted_nodes, edge_weights, inside_values)
 
+    def __sort_node_and_compute_weights(self, grammar, src_fsa):
+        """
+        This logic is preliminary to inside and outside computations (also Viterbi decoding)
+        """
+        sorted_nodes = top_sort(grammar)
+        edge_weights = {rule: self.weight_function(rule, src_fsa) for rule in grammar._rules}
+        return sorted_nodes, edge_weights
+
+    def decode(self, source_sentence, Dnx):
+        src_fsa = libitg.make_fsa(source_sentence)
+        sorted_nodes, edge_weights = self.__sort_node_and_compute_weights(Dnx, src_fsa)
+        root_node = sorted_nodes[-1]
+        _, back_pointers = viterbi_decoding(Dnx, sorted_nodes, edge_weights)
+
+        # follow back-pointers
+        nodes_to_expand = [root_node]
+        rules = []
+        terminals = []
+        while len(nodes_to_expand):
+            node = nodes_to_expand.pop()
+            rule = back_pointers[node]
+            rules.append(rule)
+            for node in rule._rhs:
+                if not node.is_terminal():
+                    nodes_to_expand.append(node)
+                else:
+                    terminals.append(node)
+        return rules, terminals
+
+    def get_root_node(self, nodes, root_node_reg=r'\[S\].*'):
+        """
+        Returns a root node (assume it's [S])
+        """
+        for node in nodes:
+            # assuming that root node will be of type Span
+            if not isinstance(node, Span):
+                continue
+            if re.match(root_node_reg, str(node)):
+                return node
+
     def get_features(self, edge, src_fsa):
-        return featurize_edge(edge=edge, src_fsa=src_fsa, ibm1_probs=self.ibm1_probs)
+        return self.features.get(edge)
+        # return featurize_edge(edge=edge, src_fsa=src_fsa, ibm1_probs=self.ibm1_probs)
 
     def get_parameter(self, feature_name):
         """
