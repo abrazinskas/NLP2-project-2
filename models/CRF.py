@@ -1,12 +1,13 @@
 import pickle
 import os
-import re
 from pickle import UnpicklingError
 import lib.libitg as libitg
 from lib.formal import Span
-from misc.inside_outside import inside_algorithm, outside_algorithm, top_sort, expected_feature_vector, viterbi_decoding
 from misc.mbr import MBR_decoding
+from misc.inside_outside import inside_algorithm, outside_algorithm
+from misc.support import top_sort, expected_feature_vector, viterbi_decoding
 import numpy as np
+from misc.utils import sort_hash_by_key
 
 np.random.seed(1)
 
@@ -80,7 +81,6 @@ class CRF():
             loglikelihood += self.compute_loglikelihood(source_sentence, Dxy, Dnx)
         return loglikelihood/len(batch)
 
-
     def compute_loglikelihood(self, source_sentence, Dxy, Dnx):
         src_fsa = libitg.make_fsa(source_sentence)
         a, log_Zxy = self.compute_inside_values(Dxy, src_fsa)
@@ -98,7 +98,7 @@ class CRF():
         """
         Wrapper function that computes inside values, returns both inside values and log normalizer
         """
-        sorted_nodes, edge_weights = self.__sort_node_and_compute_weights(grammar, src_fsa)
+        sorted_nodes, edge_weights = self.__sort_nodes_and_compute_weights(grammar, src_fsa)
         root_node = sorted_nodes[-1]
         inside_values = inside_algorithm(grammar, sorted_nodes, edge_weights=edge_weights)
         return inside_values, inside_values[root_node]
@@ -109,10 +109,10 @@ class CRF():
         """
         # TODO: make a separate function that computes both inside and outside to avoid sorting and computing
         # TODO: edge values multiple times.
-        sorted_nodes, edge_weights = self.__sort_node_and_compute_weights(grammar, src_fsa)
+        sorted_nodes, edge_weights = self.__sort_nodes_and_compute_weights(grammar, src_fsa)
         return outside_algorithm(grammar, sorted_nodes, edge_weights, inside_values)
 
-    def __sort_node_and_compute_weights(self, grammar, src_fsa):
+    def __sort_nodes_and_compute_weights(self, grammar, src_fsa):
         """
         This logic is preliminary to inside and outside computations (also Viterbi decoding)
         """
@@ -127,9 +127,9 @@ class CRF():
         I, _ = self.compute_inside_values(Dnx, src_fsa)
         return MBR_decoding(Dnx, root_node, I, num_samples)
 
-    def decode(self, source_sentence, Dnx):
+    def decode(self, source_sentence, Dnx, excluded_terminals=['-EPS-']):
         src_fsa = libitg.make_fsa(source_sentence)
-        sorted_nodes, edge_weights = self.__sort_node_and_compute_weights(Dnx, src_fsa)
+        sorted_nodes, edge_weights = self.__sort_nodes_and_compute_weights(Dnx, src_fsa)
         root_node = sorted_nodes[-1]
         _, back_pointers = viterbi_decoding(Dnx, sorted_nodes, edge_weights)
 
@@ -146,22 +146,20 @@ class CRF():
                     nodes_to_expand.append(node)
                 else:
                     terminals.append(node)
+        # reformat terminals #TODO: make it look nicer, right now it burns my eyes
+        new_terminals = {}
+        for terminal in terminals:
+            terminal_name = terminal._symbol._symbol
+            terminal_start = terminal._start
+            if terminal_name not in excluded_terminals:
+                new_terminals[terminal_start] = terminal_name
+        # sort by key (i.e. start)
+        terminals = sort_hash_by_key(new_terminals)
+        terminals = [name for start, name in terminals]
         return rules, terminals
-
-    def get_root_node(self, nodes, root_node_reg=r'\[S\].*'):
-        """
-        Returns a root node (assume it's [S])
-        """
-        for node in nodes:
-            # assuming that root node will be of type Span
-            if not isinstance(node, Span):
-                continue
-            if re.match(root_node_reg, str(node)):
-                return node
 
     def get_features(self, edge, src_fsa):
         return self.features.get(edge)
-        # return featurize_edge(edge=edge, src_fsa=src_fsa, ibm1_probs=self.ibm1_probs)
 
     def get_parameter(self, feature_name):
         """

@@ -5,6 +5,7 @@ from lib.libitg import CFG
 import os
 import errno
 from misc.helper import load_parse_trees
+import operator
 
 
 
@@ -37,6 +38,9 @@ def create_batches(parse_tree_dir, batch_size):
             yield current_batch
             current_batch = []
     yield current_batch
+
+def sort_hash_by_key(hash):
+    return sorted(hash.items(), key=operator.itemgetter(0))
 
 
 def extend_forest_with_rules_by_rhs(forest: CFG):
