@@ -13,6 +13,15 @@ class Featurizer():
         self.embeddings_ch = embeddings_ch
         self.embeddings_en = embeddings_en
 
+    def featurize_parse_trees_batch(self, batch):
+        features = Features()
+        for Dx, Dxy, source, target in batch:
+            src_fsa = libitg.make_fsa(source)
+            for edge in Dx:
+                features.add(edge, self._featurize_edge(edge, src_fsa))
+            features.add(Dxy._rules[-1], self._featurize_edge(Dxy._rules[-1], src_fsa))
+        return features
+
     def featurize_parse_trees(self, Dx, Dxy, x):
         src_fsa = libitg.make_fsa(x)
         features = Features()
