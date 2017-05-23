@@ -33,7 +33,8 @@ class Featurizer():
             if edge.rhs[0].is_terminal():
                 self._featurize_terminal_rule(edge, src_fsa, fmap)
             elif edge.lhs.obj()[0] != Nonterminal("X"):
-                self._featurize_start_rule(edge, src_fsa, fmap)
+                if not isinstance(edge.lhs, Nonterminal):
+                    self._featurize_start_rule(edge, src_fsa, fmap)
             else:
                 self._featurize_upgrade_rule(edge, src_fsa, fmap)
 
