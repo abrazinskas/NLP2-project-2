@@ -122,7 +122,7 @@ class CRF():
 
     def _decode_mbr(self, source_sentence, Dnx, num_samples):
         src_fsa = libitg.make_fsa(source_sentence)
-        sorted_nodes, edge_weights = self.__sort_node_and_compute_weights(Dnx, src_fsa)
+        sorted_nodes, edge_weights = self.__sort_nodes_and_compute_weights(Dnx, src_fsa)
         root_node = sorted_nodes[-1]
         I, _ = self.compute_inside_values(Dnx, src_fsa)
         return MBR_decoding(Dnx, root_node, I, num_samples)
