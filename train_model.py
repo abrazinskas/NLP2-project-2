@@ -8,6 +8,7 @@ from misc.helper import load_ibm1_probs, log_info, load_parse_trees, load_dev_da
 from misc.featurizer import Featurizer
 from misc.embeddings import WordEmbeddings
 from misc.utils import create_batches, extend_forest_with_rules_by_rhs
+from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
 from models.CRF import CRF
 
 # Parameters.
@@ -82,8 +83,37 @@ log_info("Done training.")
 # training set we use top_n=5, so we use it here too.
 lexicon = load_lexicon("data/sorted_translations", top_n=5)
 val_data = "data/data/dev1.zh-en"
-for chinese, Dx in load_dev_data(val_data, lexicon):
-    pass
+test_data = "data/data/dev2.zh-en"
+
+# Decode on the validation set and report validation BLEU.
+all_refs = []
+hypotheses = [] 
+for chinese, references, Dx in load_dev_data(val_data, lexicon):
+    crf.features = featurizer.featurize_parse_trees(Dx, None, chinese)
+    viterbi_y = crf.decode_viterbi(source_sentence=chinese, Dnx=Dx)
+    cur_refs = [r.split() for r in references]
+    hypotheses.append(viterbi_y)
+    all_refs.append(cur_refs)
+val_bleu = corpus_bleu(all_refs, hypotheses, \
+        smoothing_function=SmoothingFunction().method7)
+log_info("Validation BLEU: %f" % val_bleu)
+
+# Calculate the model score in terms of BLEU on the test set and write
+# the decoded strings to a file.
+with open(os.path.join(output_dir, "test_pred.txt"), "w+") as f:
+    all_refs = []
+    hypotheses = [] 
+    for chinese, references, Dx in load_dev_data(test_data, lexicon):
+        crf.features = featurizer.featurize_parse_trees(Dx, None, chinese)
+        viterbi_y = crf.decode_viterbi(source_sentence=chinese, Dnx=Dx)
+        cur_refs = [r.split() for r in references]
+        hypotheses.append(viterbi_y)
+        all_refs.append(cur_refs)
+        f.write("%s\n" % " ".join(viterbi_y))
+
+test_bleu = corpus_bleu(all_refs, hypotheses, \
+        smoothing_function=SmoothingFunction().method7)
+log_info("Test BLEU: %f" % test_bleu)
 
 # Do inference on the test set and write the results both using
 # Viterbi and MBR decoding.

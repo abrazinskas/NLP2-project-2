@@ -78,7 +78,9 @@ def load_parse_trees(parse_tree_dir):
 def load_dev_data(filename, lexicon):
     with open(filename) as f:
         for line in f:
-            chinese = line.split(" ||| ")[0]
+            splits = line.split(" ||| ")
+            chinese = splits[0]
+            references = splits[1:]
             sub_lexicon = {k:lexicon[k] for k in chinese.split() + ["-EPS-"] if k in lexicon}
             src_cfg = libitg.make_source_side_finite_itg(sub_lexicon)
 
@@ -88,4 +90,4 @@ def load_dev_data(filename, lexicon):
                     sprime_symbol=Nonterminal("D(x)"), clean=True)
             Dx = libitg.make_target_side_itg(_Dx, lexicon)
 
-            yield (chinese, Dx)
+            yield (chinese, references, Dx)

@@ -27,7 +27,8 @@ class Featurizer():
         features = Features()
         for edge in Dx:
             features.add(edge, self._featurize_edge(edge, src_fsa))
-        features.add(Dxy._rules[-1], self._featurize_edge(Dxy._rules[-1], src_fsa))
+        if Dxy is not None:
+            features.add(Dxy._rules[-1], self._featurize_edge(Dxy._rules[-1], src_fsa))
         return features
 
     def _featurize_edge(self, edge, src_fsa):
