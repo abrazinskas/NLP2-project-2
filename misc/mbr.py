@@ -57,10 +57,11 @@ def ancestral_sampling(forest, root, I, num_samples):
             sample.append(sampled_rule)
 
             # Add the RHS of the rule to the nodes to expand and remove
-            # the current node from that list.
+            # the current node from that list. Make sure that we traverse
+            # the tree in depth-first order.
             del node_queue[0]
-            for node in sampled_rule.rhs:
-                node_queue.append(node)
+            for idx, node in enumerate(sampled_rule.rhs):
+                node_queue.insert(idx, node)
 
         samples.append(sample)
     return samples
@@ -70,15 +71,19 @@ def log_weight_rule(rule, I):
     p_prime = np.array([I[node] for node in rule.rhs])
     return logsumexp(p_prime)
 
-# Returns the target yield of a derivation.
+# Returns the target yield of a derivation. Assumes that the rules
+# are derived in depth-first order, so it can go over the list of
+# rules from left-to-right.
 def target_yield(derivation):
     sentence_length = derivation[0].rhs[0].obj()[2]
     decoded = [None for _ in range(sentence_length * 2)]
+    idx = 0
     for rule in derivation:
         if rule.rhs[0].is_terminal():
-            symbol, idx, _ = rule.rhs[0].obj()
+            symbol, _, _ = rule.rhs[0].obj()
             word = symbol.obj()
             decoded[idx] = word
+            idx += 1
 
     # Remove all None from the decoded string.
     final_dec = []
