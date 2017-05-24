@@ -2,6 +2,11 @@
 from lib.libitg import CFG
 from toposort import toposort
 import numpy as np
+from misc.log import Log
+import time
+import pickle
+from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
+
 
 def viterbi_decoding(forest: CFG, tsort: list, edge_weights: dict) -> dict:
     """Returns max I(v) subtree under v potentials and back pointers """
@@ -91,3 +96,34 @@ def compute_learning_rate(start_learning_rate, step, decay_rate=1 ):
     computes adaptive learning rate that is based on the number of updates already performed.
     """
     return start_learning_rate/(1.+start_learning_rate*decay_rate*step)
+
+
+def evaluate(crf, featurizer, val_data_path):
+    all_refs = []
+    hypotheses = []
+    total_loglikelihood = 0.
+    counter = 0.
+    for chinese, references, Dx, Dxys in pickle.load(open(val_data_path, 'rb')):
+        for reference, Dxy in zip(references, Dxys):
+            # there is no way we can compute log-likelihood if Dxy is empty
+            if len(Dxy._rules) == 0:
+                continue
+            counter += 1
+            crf.features = featurizer.featurize_parse_trees(Dx, Dxy, chinese)
+            # compute log-likelihood
+            total_loglikelihood += crf.compute_loglikelihood(source_sentence=chinese, Dxy=Dxy, Dnx=Dx)
+        crf.features = featurizer.featurize_parse_trees(Dx, None, chinese)
+        viterbi_y = crf.decode_viterbi(source_sentence=chinese, Dnx=Dx)
+        if len(viterbi_y) > 1: # it's 1 because of /usr/local/lib/python3.6/site-packages/nltk/translate/bleu_score.py", line 544
+            cur_refs = [r.split() for r in references]
+            hypotheses.append(viterbi_y)
+            all_refs.append(cur_refs)
+    bleu = corpus_bleu(all_refs, hypotheses, smoothing_function=SmoothingFunction().method7)
+    if counter == 0:
+        total_loglikelihood = 0.
+    else:
+        total_loglikelihood /= float(counter)
+    return bleu, total_loglikelihood
+
+
+

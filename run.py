@@ -1,22 +1,23 @@
 # this file contains an example how to run the model
 import os
 from models.CRF import CRF
-from misc.helper import load_ibm1_probs, load_lexicon
+from misc.helper import load_ibm1_probs, load_lexicon, load_dev_data
 from misc.utils import extend_forest_with_rules_by_rhs, create_batches, get_run_var
 from misc.featurizer import Featurizer
 from misc.embeddings import WordEmbeddings
 from misc.log import Log
+from misc.support import evaluate
 import time
 
 # parameters
-learning_rate = 1e-6
-regul_strength = 1e-3
-epochs = 1
+learning_rate = 1e-5
+regul_strength = 1e1
+epochs = 5
 batch_size = 50
 decay_rate = 1000.
 
 # paths
-parse_tree_dir = "data/parses_small/"  # format:[ source, target, Dx, Dxy, Dnx]
+parse_tree_dir = "data/train_small/"  # format:[ source, target, Dx, Dxy, Dnx]
 ibm1_probs_file_path = "data/lexicon"
 embeddings_dir = "data/embeddings/"
 word_embeddings_ch_file_path = os.path.join(embeddings_dir, "zh.pkl")
@@ -25,6 +26,8 @@ word_clusters_ch_file_path = os.path.join(embeddings_dir, "clusters.zh")
 word_clusters_en_file_path = os.path.join(embeddings_dir, "clusters.en")
 output_folder_path = "output/"
 output_folder_path = os.path.join(output_folder_path, str(get_run_var(output_folder_path)))
+val_data_path = "data/val/parses_max_10_top_5.pkl"
+test_data_path = "data/test/parses_max_10_top_5.pkl"
 
 
 # loading extra params for the model
@@ -45,6 +48,7 @@ log.write("decay rate %f" % decay_rate)
 log.write("-------------------------------")
 
 
+
 featurizer = Featurizer(ibm1_probs, embeddings_ch, embeddings_en)
 
 crf = CRF(learning_rate=learning_rate, regul_strength=regul_strength, decay_rate=decay_rate)
@@ -63,35 +67,40 @@ for epoch in range(1, epochs+1):
         # load featurizer ( TODO: make a simple function call in the class itself )
         crf.features = featurizer.featurize_parse_trees_batch(batch)
 
-        log.write('using data from batch # %d' % (j+1))
+        # log.write('using data from batch # %d' % (j+1))
         # ll_before = crf.compute_loglikelihood(source_sentence=chinese, Dxy=Dxy, Dnx=Dx)
-        ll_before = crf.compute_loglikelihood_batch(batch=batch)
-        log.write("log-likelihood before %f" % ll_before)
+        # ll_before = crf.compute_loglikelihood_batch(batch=batch)
+        # log.write("log-likelihood before %f" % ll_before)
 
-        # crf.train(source_sentence=chinese, Dxy=Dxy, Dnx=Dx)
         crf.train_batch(batch=batch)
 
-        ll_after = crf.compute_loglikelihood_batch(batch=batch)
-        log.write("log-likelihood after %f" % ll_after)
-        log.write("-------------------------------")
+        # ll_after = crf.compute_loglikelihood_batch(batch=batch)
+        # log.write("log-likelihood after %f" % ll_after)
+        # log.write("-------------------------------")
+
+
+    val_bleu, val_loglikelihood = evaluate(crf, featurizer, val_data_path)
+
+    log.write("validation BLEU is: %f" % val_bleu)
+    log.write("validation log-likelihood is: %f" % (val_loglikelihood))
 
     end = time.time()
     log.write("epoch completed in %f minutes " % ((end - start)/60.0))
 
-
-# perform inference and save in a file
-translations_file = open(os.path.join(output_folder_path, "translations.txt"), 'w')
-print('performing inference')
-for j, batch in enumerate(create_batches(parse_tree_dir, batch_size=batch_size)):
-    # load featurizer TODO: ( make a simple function call in the class itself )
-    crf.features = featurizer.featurize_parse_trees_batch(batch)
-    for Dx, Dxy, chinese, english in batch:
-        terminals = crf.decode_viterbi(source_sentence=chinese, Dnx=Dx)
-        translations_file.write("\t".join([english, chinese, " ".join(terminals)])+"\n")
-translations_file.close()
-print('done')
-
-
-
+#
+# # perform inference and save in a file
+# translations_file = open(os.path.join(output_folder_path, "translations.txt"), 'w')
+# print('performing inference')
+# for j, batch in enumerate(create_batches(parse_tree_dir, batch_size=batch_size)):
+#     # load featurizer TODO: ( make a simple function call in the class itself )
+#     crf.features = featurizer.featurize_parse_trees_batch(batch)
+#     for Dx, Dxy, chinese, english in batch:
+#         terminals = crf.decode_viterbi(source_sentence=chinese, Dnx=Dx)
+#         translations_file.write("\t".join([english, chinese, " ".join(terminals)])+"\n")
+# translations_file.close()
+# print('done')
+#
+#
+#
 
 

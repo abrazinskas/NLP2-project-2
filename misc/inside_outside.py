@@ -2,6 +2,7 @@
 from lib.libitg import CFG
 import numpy as np
 
+EPS = 1e-6
 
 def inside_algorithm(forest: CFG, tsort: list, edge_weights: dict) -> dict:
     """Returns the inside weight of each node in log space"""
@@ -18,7 +19,7 @@ def inside_algorithm(forest: CFG, tsort: list, edge_weights: dict) -> dict:
             for rhs_node in rule.rhs:
                 inner_sum += I[rhs_node]
             temp_inside += np.exp(inner_sum)
-        I[node] = np.log(temp_inside)
+        I[node] = np.log(temp_inside + EPS)
     return I
 
 
@@ -40,6 +41,6 @@ def outside_algorithm(forest: CFG, tsort:list, edge_weights: dict, inside: dict)
                     continue
                 inner_sum += inside[rhs_node]
             temp_outside += np.exp(inner_sum)
-        O[node] = np.log(temp_outside)
+        O[node] = np.log(temp_outside + EPS)
     return O
 

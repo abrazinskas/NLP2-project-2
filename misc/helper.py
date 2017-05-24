@@ -98,7 +98,8 @@ def load_dev_data(filename, lexicon, return_Dxy=False, max_Dxy=None):
                     tgt_fsa = libitg.make_fsa(ref)
                     Dxy = libitg.earley(Dx, tgt_fsa, start_symbol=Nonterminal("D(x)"), \
                             sprime_symbol=Nonterminal('D(x,y)'), clean=True)
-                    Dxys.append(Dxy)
+                    if len(Dxy._rules)>0:
+                        Dxys.append(Dxy)
                 yield (chinese, references, Dx, Dxys)
             else:
                 yield (chinese, references, Dx)

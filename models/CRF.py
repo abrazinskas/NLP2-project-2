@@ -55,7 +55,7 @@ class CRF():
         """
         self.current_step += 1
         learning_rate = compute_learning_rate(self.learning_rate, step=self.current_step, decay_rate=self.decay_rate)
-        # print(learning_rate)
+        print(learning_rate)
         gradients_acc = {}
         # accumulate gradients
         for Dnx, Dxy, source_sentence, target_sentence in batch:
