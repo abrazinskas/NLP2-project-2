@@ -1,8 +1,9 @@
 import os
 import dill as pickle
+import lib.libitg as libitg
 
 from collections import defaultdict
-from lib.libitg import Terminal
+from lib.libitg import Terminal, Nonterminal
 from time import strftime, localtime
 
 def load_lexicon(lexicon_file, top_n=5):
@@ -73,3 +74,18 @@ def load_parse_trees(parse_tree_dir):
             # Yield (Dx, Dxy).
             idx += 1
             yield (Dx, Dxy, ch_sentence[:-1], en_sentence[:-1])
+
+def load_dev_data(filename, lexicon):
+    with open(filename) as f:
+        for line in f:
+            chinese = line.split(" ||| ")[0]
+            sub_lexicon = {k:lexicon[k] for k in chinese.split() + ["-EPS-"] if k in lexicon}
+            src_cfg = libitg.make_source_side_finite_itg(sub_lexicon)
+
+            # Create an FSA for the source sentence and parse the source sentence.
+            src_fsa = libitg.make_fsa(chinese)
+            _Dx = libitg.earley(src_cfg, src_fsa, start_symbol=Nonterminal('S'), \
+                    sprime_symbol=Nonterminal("D(x)"), clean=True)
+            Dx = libitg.make_target_side_itg(_Dx, lexicon)
+
+            yield (chinese, Dx)

@@ -4,7 +4,7 @@ import lib.libitg as libitg
 from lib.libitg import Symbol, Terminal, Nonterminal, Span
 from lib.libitg import Rule, CFG
 from lib.libitg import FSA
-from misc.helper import load_ibm1_probs, log_info, load_parse_trees
+from misc.helper import load_ibm1_probs, log_info, load_parse_trees, load_dev_data, load_lexicon
 from misc.featurizer import Featurizer
 from misc.embeddings import WordEmbeddings
 from misc.utils import create_batches, extend_forest_with_rules_by_rhs
@@ -12,7 +12,7 @@ from models.CRF import CRF
 
 # Parameters.
 learning_rate = 1e-6
-num_epochs = 5
+num_epochs = 1
 batch_size = 50
 
 # Arguments.
@@ -56,7 +56,6 @@ for epoch in range(1, num_epochs + 1):
     for batch_num, batch in enumerate(create_batches(parse_tree_dir, batch_size=batch_size)):
         log_info("Batch %d" % batch_num)
 
-        # TODO
         for Dx, Dxy, chinese, english in batch:
             extend_forest_with_rules_by_rhs(Dx)
             extend_forest_with_rules_by_rhs(Dxy)
@@ -76,7 +75,15 @@ for epoch in range(1, num_epochs + 1):
         ll_after = crf.compute_loglikelihood_batch(batch=batch)
         log_info("Log-likelihood after = %f" % ll_after)
         log_info("--------")
+        break
 log_info("Done training.")
+
+# TODO what we choose here as top_n may affect our results. In the small
+# training set we use top_n=5, so we use it here too.
+lexicon = load_lexicon("data/sorted_translations", top_n=5)
+val_data = "data/data/dev1.zh-en"
+for chinese, Dx in load_dev_data(val_data, lexicon):
+    pass
 
 # Do inference on the test set and write the results both using
 # Viterbi and MBR decoding.
