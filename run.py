@@ -86,7 +86,7 @@ for j, batch in enumerate(create_batches(parse_tree_dir, batch_size=batch_size))
     # load featurizer TODO: ( make a simple function call in the class itself )
     crf.features = featurizer.featurize_parse_trees_batch(batch)
     for Dx, Dxy, chinese, english in batch:
-        terminals = crf.decode(source_sentence=chinese, Dnx=Dx)
+        terminals = crf.decode_viterbi(source_sentence=chinese, Dnx=Dx)
         translations_file.write("\t".join([english, chinese, " ".join(terminals)])+"\n")
 translations_file.close()
 print('done')
