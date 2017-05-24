@@ -86,8 +86,8 @@ def __traverse(back_pointers, start_node, collector, terminals_decoration_func):
         __traverse(back_pointers, node, collector, terminals_decoration_func)
 
 
-def compute_learning_rate(start_learning_rate, regul_strength, step):
+def compute_learning_rate(start_learning_rate, step, decay_rate=1 ):
     """
     computes adaptive learning rate that is based on the number of updates already performed.
     """
-    return start_learning_rate/(1.+start_learning_rate*regul_strength*step)
+    return start_learning_rate/(1.+start_learning_rate*decay_rate*step)

@@ -15,11 +15,12 @@ np.random.seed(1)
 
 class CRF():
 
-    def __init__(self, learning_rate=1e-8, regul_strength=1e-8):
+    def __init__(self, learning_rate=1e-8, regul_strength=1e-8, decay_rate=1e-2):
         self.parameters = {}  # initialization is performed as a feature function is observed
         self.features = None
         self.learning_rate = learning_rate
         self.regul_strength = regul_strength
+        self.decay_rate = decay_rate
         self.current_step = 0  # track how many times we've updated our parameters
 
     def compute_gradient(self, source_sentence, Dxy, Dnx):
@@ -53,7 +54,8 @@ class CRF():
         :param batch: (Dnx, Dxy, source, target) list
         """
         self.current_step += 1
-        learning_rate = compute_learning_rate(self.learning_rate, self.regul_strength, self.current_step)
+        learning_rate = compute_learning_rate(self.learning_rate, step=self.current_step, decay_rate=self.decay_rate)
+        # print(learning_rate)
         gradients_acc = {}
         # accumulate gradients
         for Dnx, Dxy, source_sentence, target_sentence in batch:
@@ -68,17 +70,6 @@ class CRF():
             current_weight_value = self.get_parameter(feature_name)
             self.parameters[feature_name] = \
                 current_weight_value + learning_rate * (derivative/len(batch) - self.regul_strength * current_weight_value)
-
-    # def train(self, source_sentence, Dxy, Dnx):
-    #     """
-    #     Training of a single instance of data with SGD
-    #     """
-    #     self.current_step += 1
-    #     learning_rate = compute_learning_rate(self.learning_rate, self.regul_strength, self.current_step)
-    #     gradient = self.compute_gradient(source_sentence, Dxy, Dnx)
-    #     for feature_name, derivative in gradient.items():
-    #         current_weight_value = self.get_parameter(feature_name)
-    #         self.parameters[feature_name] = current_weight_value + learning_rate * derivative
 
     def compute_loglikelihood_batch(self, batch):
         """
@@ -152,29 +143,6 @@ class CRF():
         # do cleaning by excluding unwanted terminals
         terminals = [t for t in terminals if t not in excluded_terminals]
 
-        # follow back-pointers
-        # nodes_to_expand = [root_node]
-        # rules = []
-        # terminals = []
-        # while len(nodes_to_expand):
-        #     node = nodes_to_expand.pop()
-        #     rule = back_pointers[node]
-        #     rules.append(rule)
-        #     for node in rule._rhs:
-        #         if not node.is_terminal():
-        #             nodes_to_expand.append(node)
-        #         else:
-        #             terminals.append(node)
-        # # reformat terminals # TODO: make it look nicer, right now it burns my eyes
-        # new_terminals = {}
-        # for terminal in terminals:
-        #     terminal_name = terminal._symbol._symbol
-        #     terminal_start = terminal._start
-        #     if terminal_name not in excluded_terminals:
-        #         new_terminals[terminal_start] = terminal_name
-        # # sort by key (i.e. start)
-        # terminals = sort_hash_by_key(new_terminals)
-        # terminals = [name for start, name in terminals]
         return terminals
 
     def get_features(self, edge, src_fsa):
