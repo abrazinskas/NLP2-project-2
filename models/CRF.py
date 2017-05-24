@@ -2,6 +2,8 @@ import pickle
 import os
 from pickle import UnpicklingError
 import lib.libitg as libitg
+from lib.formal import Span
+from misc.mbr import MBR_decoding
 from misc.inside_outside import inside_algorithm, outside_algorithm
 from misc.support import top_sort, expected_feature_vector, viterbi_decoding, traverse_back_pointers,\
     compute_learning_rate
@@ -126,6 +128,13 @@ class CRF():
         sorted_nodes = top_sort(grammar)
         edge_weights = {rule: self.weight_function(rule, src_fsa) for rule in grammar._rules}
         return sorted_nodes, edge_weights
+
+    def _decode_mbr(self, source_sentence, Dnx, num_samples):
+        src_fsa = libitg.make_fsa(source_sentence)
+        sorted_nodes, edge_weights = self.__sort_nodes_and_compute_weights(Dnx, src_fsa)
+        root_node = sorted_nodes[-1]
+        I, _ = self.compute_inside_values(Dnx, src_fsa)
+        return MBR_decoding(Dnx, root_node, I, num_samples)
 
     def decode(self, source_sentence, Dnx, excluded_terminals=['-EPS-']):
         """
