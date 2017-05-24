@@ -73,10 +73,16 @@ def log_weight_rule(rule, I):
 # Returns the target yield of a derivation.
 def target_yield(derivation):
     sentence_length = derivation[0].rhs[0].obj()[2]
-    result = [None for _ in range(sentence_length)]
+    decoded = [None for _ in range(sentence_length * 2)]
     for rule in derivation:
         if rule.rhs[0].is_terminal():
             symbol, idx, _ = rule.rhs[0].obj()
             word = symbol.obj()
-            result[idx] = word
-    return result
+            decoded[idx] = word
+
+    # Remove all None from the decoded string.
+    final_dec = []
+    for sym in decoded:
+        if sym is not None:
+            final_dec.append(sym)
+    return final_dec
