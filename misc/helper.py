@@ -75,7 +75,7 @@ def load_parse_trees(parse_tree_dir):
             idx += 1
             yield (Dx, Dxy, ch_sentence[:-1], en_sentence[:-1])
 
-def load_dev_data(filename, lexicon):
+def load_dev_data(filename, lexicon, return_Dxy=False, max_Dxy=None):
     with open(filename) as f:
         for line in f:
             splits = line.split(" ||| ")
@@ -90,4 +90,15 @@ def load_dev_data(filename, lexicon):
                     sprime_symbol=Nonterminal("D(x)"), clean=True)
             Dx = libitg.make_target_side_itg(_Dx, lexicon)
 
-            yield (chinese, references, Dx)
+            # Create a target FSA and D(x, y) for the ref translations
+            if return_Dxy:
+                Dxys = []
+                refs = references if max_Dxy is None else references[:max_Dxy]
+                for ref in refs:
+                    tgt_fsa = libitg.make_fsa(ref)
+                    Dxy = libitg.earley(Dx, tgt_fsa, start_symbol=Nonterminal("D(x)"), \
+                            sprime_symbol=Nonterminal('D(x,y)'), clean=True)
+                    Dxys.append(Dxy)
+                yield (chinese, references, Dx, Dxys)
+            else:
+                yield (chinese, references, Dx)
