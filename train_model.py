@@ -80,14 +80,17 @@ log_info("Done training.")
 
 # Do inference on the test set and write the results both using
 # Viterbi and MBR decoding.
-log_info("Performing inference on the test set...")
-with open(viterbi_output_file, "w+") as vof, open(mbr_output_file, "w+") as mof:
-    for j, batch in enumerate(create_batches(parse_tree_dir, batch_size=batch_size)):
-        crf.features = featurizer.featurize_parse_trees_batch(batch)
-        for Dx, Dxy, chinese, english in batch:
-            rules, terminals = crf.decode(source_sentence=chinese, Dnx=Dx)
-            vof.write("\t".join([english, chinese, " ".join(terminals)])+"\n")
-            mbr_deriv = crf._decode_mbr(chinese, Dx, 100)
-            mof.write("\t".join([english, chinese, " ".join(mbr_deriv)])+"\n")
-log_info("Viterbi decoding results written to %s" % viterbi_output_file)
-log_info("MBR decoding results written to %s" % mbr_output_file)
+# log_info("Performing inference on the test set...")
+# for temp in [1.0, 1.2, 1.6, 2.0]:
+#     crf.temp = temp
+#     with open(viterbi_output_file + "-%f" % temp, "w+") as vof, open(mbr_output_file + "-%f" % temp, "w+") as mof:
+#         for j, batch in enumerate(create_batches(parse_tree_dir, batch_size=batch_size)):
+#             crf.features = featurizer.featurize_parse_trees_batch(batch)
+#             for Dx, Dxy, chinese, english in batch:
+#                 rules, terminals = crf.decode(source_sentence=chinese, Dnx=Dx)
+#                 vof.write("\t".join([english, chinese, " ".join(terminals)])+"\n")
+#                 mbr_deriv = crf._decode_mbr(chinese, Dx, 100)
+#                 mof.write("\t".join([english, chinese, " ".join(mbr_deriv)])+"\n")
+#             break
+#     log_info("Viterbi decoding results written to %s" % viterbi_output_file)
+#     log_info("MBR decoding results written to %s" % mbr_output_file)

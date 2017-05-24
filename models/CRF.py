@@ -87,11 +87,11 @@ class CRF():
         _, log_Znx = self.compute_inside_values(Dnx, src_fsa)
         return log_Zxy - log_Znx
 
-    def weight_function(self, edge, src_fsa) -> float:
+    def weight_function(self, edge, src_fsa, temperature=1.0) -> float:
         features = self.get_features(edge, src_fsa)
         dot_product = 0.
         for feature_name in features.keys():
-            dot_product += features[feature_name] * self.get_parameter(feature_name)
+            dot_product += features[feature_name] * self.get_parameter(feature_name) * temperature
         return dot_product
 
     def compute_inside_values(self, grammar, src_fsa):
@@ -112,22 +112,22 @@ class CRF():
         sorted_nodes, edge_weights = self.__sort_nodes_and_compute_weights(grammar, src_fsa)
         return outside_algorithm(grammar, sorted_nodes, edge_weights, inside_values)
 
-    def __sort_nodes_and_compute_weights(self, grammar, src_fsa):
+    def __sort_nodes_and_compute_weights(self, grammar, src_fsa, temperature=1.0):
         """
         This logic is preliminary to inside and outside computations (also Viterbi decoding)
         """
         sorted_nodes = top_sort(grammar)
-        edge_weights = {rule: self.weight_function(rule, src_fsa) for rule in grammar._rules}
+        edge_weights = {rule: self.weight_function(rule, src_fsa, temperature) for rule in grammar._rules}
         return sorted_nodes, edge_weights
 
-    def _decode_mbr(self, source_sentence, Dnx, num_samples):
+    def decode_mbr(self, source_sentence, Dnx, num_samples, temperature):
         src_fsa = libitg.make_fsa(source_sentence)
-        sorted_nodes, edge_weights = self.__sort_nodes_and_compute_weights(Dnx, src_fsa)
+        sorted_nodes, edge_weights = self.__sort_nodes_and_compute_weights(Dnx, src_fsa, temperature=1.0)
         root_node = sorted_nodes[-1]
         I, _ = self.compute_inside_values(Dnx, src_fsa)
         return MBR_decoding(Dnx, root_node, I, num_samples)
 
-    def decode(self, source_sentence, Dnx, excluded_terminals=['-EPS-']):
+    def decode_viterbi(self, source_sentence, Dnx, excluded_terminals=['-EPS-']):
         src_fsa = libitg.make_fsa(source_sentence)
         sorted_nodes, edge_weights = self.__sort_nodes_and_compute_weights(Dnx, src_fsa)
         root_node = sorted_nodes[-1]
