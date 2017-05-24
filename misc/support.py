@@ -26,6 +26,7 @@ def viterbi_decoding(forest: CFG, tsort: list, edge_weights: dict) -> dict:
         I_a[node] = temp_arg_max
     return I, I_a
 
+
 def expected_feature_vector(forest: CFG, inside: dict, outside: dict, edge_features) -> dict:
     """Returns an expected feature vector (here a sparse python dictionary)"""
     phi = {}
@@ -39,6 +40,7 @@ def expected_feature_vector(forest: CFG, inside: dict, outside: dict, edge_featu
                 phi[feature_name] = 0.
             phi[feature_name] += k * feature_value
     return phi
+
 
 def top_sort(forest: CFG) -> list:
     """Returns ordered list of nodes according to topsort order in an acyclic forest"""
@@ -59,3 +61,33 @@ def top_sort(forest: CFG) -> list:
         for b in a:
             res.append(b)
     return res
+
+
+def traverse_back_pointers(back_pointers, start_node, terminals_decoration_func=lambda x :x):
+    """
+    Recursive traversal of tree by following back-pointers. This logic is used for decoding.
+    Returns a list of terminals in order.
+    :param terminals_decoration_func: a function that can be used to decorate terminals, e.g. strip spans
+    """
+    terminals = []
+    rule = back_pointers[start_node]
+    for node in rule._rhs:
+        __traverse(back_pointers, node, terminals, terminals_decoration_func)
+    return terminals
+
+
+def __traverse(back_pointers, start_node, collector, terminals_decoration_func):
+    if start_node.is_terminal():
+        decorated_terminal = terminals_decoration_func(start_node)
+        collector.append(decorated_terminal)
+        return
+    rule = back_pointers[start_node]
+    for node in rule._rhs:
+        __traverse(back_pointers, node, collector, terminals_decoration_func)
+
+
+def compute_learning_rate(start_learning_rate, regul_strength, step):
+    """
+    computes adaptive learning rate that is based on the number of updates already performed.
+    """
+    return start_learning_rate/(1.+start_learning_rate*regul_strength*step)

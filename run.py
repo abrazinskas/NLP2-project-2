@@ -5,10 +5,12 @@ from misc.helper import load_ibm1_probs
 from misc.utils import extend_forest_with_rules_by_rhs, create_batches
 from misc.featurizer import Featurizer
 from misc.embeddings import WordEmbeddings
+import time
 
 # parameters
-learning_rate = 1e-6
-epochs = 5
+learning_rate = 1e-7
+regul_strength = 1e-4
+epochs = 8
 batch_size = 50
 
 # paths
@@ -28,9 +30,10 @@ embeddings_en = WordEmbeddings(word_embeddings_en_file_path, word_clusters_en_fi
 
 featurizer = Featurizer(ibm1_probs, embeddings_ch, embeddings_en)
 
-crf = CRF(learning_rate=learning_rate)
+crf = CRF(learning_rate=learning_rate, regul_strength=regul_strength)
 
 for epoch in range(1, epochs+1):
+    start = time.time()
     print("epoch %d" % epoch)
     for j, batch in enumerate(create_batches(parse_tree_dir, batch_size=batch_size)):
 
@@ -43,7 +46,7 @@ for epoch in range(1, epochs+1):
         # load featurizer ( TODO: make a simple function call in the class itself )
         crf.features = featurizer.featurize_parse_trees_batch(batch)
 
-        print('using data from line %d' % (j+1))
+        print('using data from batch # %d' % (j+1))
         # ll_before = crf.compute_loglikelihood(source_sentence=chinese, Dxy=Dxy, Dnx=Dx)
         ll_before = crf.compute_loglikelihood_batch(batch=batch)
         print("log-likelihood before %f" % ll_before)
@@ -56,6 +59,9 @@ for epoch in range(1, epochs+1):
         print("log-likelihood after %f" % ll_after)
         print("-------------------------------")
 
+    end = time.time()
+    print("epoch completed in %f minutes " % ((end - start)/60.0))
+
 
 # perform inference and save in a file
 translations_file = open(translations_file_path, 'w')
@@ -64,7 +70,7 @@ for j, batch in enumerate(create_batches(parse_tree_dir, batch_size=batch_size))
     # load featurizer ( TODO: make a simple function call in the class itself )
     crf.features = featurizer.featurize_parse_trees_batch(batch)
     for Dx, Dxy, chinese, english in batch:
-        rules, terminals = crf.decode_viterbi(source_sentence=chinese, Dnx=Dx)
+        terminals = crf.decode_viterbi(source_sentence=chinese, Dnx=Dx)
         translations_file.write("\t".join([english, chinese, " ".join(terminals)])+"\n")
 translations_file.close()
 print('done')

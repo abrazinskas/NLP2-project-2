@@ -5,7 +5,8 @@ import lib.libitg as libitg
 from lib.formal import Span
 from misc.mbr import MBR_decoding
 from misc.inside_outside import inside_algorithm, outside_algorithm
-from misc.support import top_sort, expected_feature_vector, viterbi_decoding
+from misc.support import top_sort, expected_feature_vector, viterbi_decoding, traverse_back_pointers,\
+    compute_learning_rate
 import numpy as np
 from misc.utils import sort_hash_by_key
 
@@ -14,10 +15,12 @@ np.random.seed(1)
 
 class CRF():
 
-    def __init__(self, learning_rate=1e-8):
+    def __init__(self, learning_rate=1e-8, regul_strength=1e-8):
         self.parameters = {}  # initialization is performed as a feature function is observed
         self.features = None
         self.learning_rate = learning_rate
+        self.regul_strength = regul_strength
+        self.current_step = 0  # track how many times we've updated our parameters
 
     def compute_gradient(self, source_sentence, Dxy, Dnx):
         src_fsa = libitg.make_fsa(source_sentence)
@@ -45,9 +48,12 @@ class CRF():
 
     def train_batch(self, batch):
         """
-        Training on a batch of instances with SGD, notice that we divide gradients by the number of data-points
+        Training on a batch of instances with SGD, notice that we divide gradients by the number of data-points.
+        In addition, we perform regularization.
         :param batch: (Dnx, Dxy, source, target) list
         """
+        self.current_step += 1
+        learning_rate = compute_learning_rate(self.learning_rate, self.regul_strength, self.current_step)
         gradients_acc = {}
         # accumulate gradients
         for Dnx, Dxy, source_sentence, target_sentence in batch:
@@ -60,16 +66,19 @@ class CRF():
         # update
         for feature_name, derivative in gradients_acc.items():
             current_weight_value = self.get_parameter(feature_name)
-            self.parameters[feature_name] = current_weight_value + self.learning_rate * derivative/len(batch)
+            self.parameters[feature_name] = \
+                current_weight_value + learning_rate * (derivative/len(batch) - self.regul_strength * current_weight_value)
 
-    def train(self, source_sentence, Dxy, Dnx):
-        """
-        Training of a single instance of data with SGD
-        """
-        gradient = self.compute_gradient(source_sentence, Dxy, Dnx)
-        for feature_name, derivative in gradient.items():
-            current_weight_value = self.get_parameter(feature_name)
-            self.parameters[feature_name] = current_weight_value + self.learning_rate * derivative
+    # def train(self, source_sentence, Dxy, Dnx):
+    #     """
+    #     Training of a single instance of data with SGD
+    #     """
+    #     self.current_step += 1
+    #     learning_rate = compute_learning_rate(self.learning_rate, self.regul_strength, self.current_step)
+    #     gradient = self.compute_gradient(source_sentence, Dxy, Dnx)
+    #     for feature_name, derivative in gradient.items():
+    #         current_weight_value = self.get_parameter(feature_name)
+    #         self.parameters[feature_name] = current_weight_value + learning_rate * derivative
 
     def compute_loglikelihood_batch(self, batch):
         """
@@ -128,35 +137,45 @@ class CRF():
         return MBR_decoding(Dnx, root_node, I, num_samples)
 
     def decode_viterbi(self, source_sentence, Dnx, excluded_terminals=['-EPS-']):
+        """
+        Translates(decodes) source sentence into target sentence using Viterbi dynamic programming algorithm
+        :return: :rtype: list of terminals in order
+        """
         src_fsa = libitg.make_fsa(source_sentence)
         sorted_nodes, edge_weights = self.__sort_nodes_and_compute_weights(Dnx, src_fsa)
         root_node = sorted_nodes[-1]
         _, back_pointers = viterbi_decoding(Dnx, sorted_nodes, edge_weights)
 
+        # create decoration function, and traverse back pointers recursively
+        terminals_decoration_func = lambda x: x._symbol._symbol
+        terminals = traverse_back_pointers(back_pointers, root_node, terminals_decoration_func)
+        # do cleaning by excluding unwanted terminals
+        terminals = [t for t in terminals if t not in excluded_terminals]
+
         # follow back-pointers
-        nodes_to_expand = [root_node]
-        rules = []
-        terminals = []
-        while len(nodes_to_expand):
-            node = nodes_to_expand.pop()
-            rule = back_pointers[node]
-            rules.append(rule)
-            for node in rule._rhs:
-                if not node.is_terminal():
-                    nodes_to_expand.append(node)
-                else:
-                    terminals.append(node)
-        # reformat terminals #TODO: make it look nicer, right now it burns my eyes
-        new_terminals = {}
-        for terminal in terminals:
-            terminal_name = terminal._symbol._symbol
-            terminal_start = terminal._start
-            if terminal_name not in excluded_terminals:
-                new_terminals[terminal_start] = terminal_name
-        # sort by key (i.e. start)
-        terminals = sort_hash_by_key(new_terminals)
-        terminals = [name for start, name in terminals]
-        return rules, terminals
+        # nodes_to_expand = [root_node]
+        # rules = []
+        # terminals = []
+        # while len(nodes_to_expand):
+        #     node = nodes_to_expand.pop()
+        #     rule = back_pointers[node]
+        #     rules.append(rule)
+        #     for node in rule._rhs:
+        #         if not node.is_terminal():
+        #             nodes_to_expand.append(node)
+        #         else:
+        #             terminals.append(node)
+        # # reformat terminals # TODO: make it look nicer, right now it burns my eyes
+        # new_terminals = {}
+        # for terminal in terminals:
+        #     terminal_name = terminal._symbol._symbol
+        #     terminal_start = terminal._start
+        #     if terminal_name not in excluded_terminals:
+        #         new_terminals[terminal_start] = terminal_name
+        # # sort by key (i.e. start)
+        # terminals = sort_hash_by_key(new_terminals)
+        # terminals = [name for start, name in terminals]
+        return terminals
 
     def get_features(self, edge, src_fsa):
         return self.features.get(edge)
