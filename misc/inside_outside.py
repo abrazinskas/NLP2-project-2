@@ -7,7 +7,7 @@ EPS = 1e-6
 def inside_algorithm(forest: CFG, tsort: list, edge_weights: dict) -> dict:
     """Returns the inside weight of each node in log space"""
     I = {}  # inside values in log space
-    for node in tsort:
+    for i, node in enumerate(tsort):
         if node.is_terminal():
             I[node] = np.log(1.)
             continue
@@ -19,7 +19,8 @@ def inside_algorithm(forest: CFG, tsort: list, edge_weights: dict) -> dict:
             for rhs_node in rule.rhs:
                 inner_sum += I[rhs_node]
             temp_inside += np.exp(inner_sum)
-        I[node] = np.log(temp_inside + EPS)
+        temp_inside = np.log(temp_inside) if temp_inside > 0. else 0.
+        I[node] = temp_inside
     return I
 
 
@@ -41,6 +42,7 @@ def outside_algorithm(forest: CFG, tsort:list, edge_weights: dict, inside: dict)
                     continue
                 inner_sum += inside[rhs_node]
             temp_outside += np.exp(inner_sum)
-        O[node] = np.log(temp_outside + EPS)
+        temp_outside = np.log(temp_outside) if temp_outside > 0. else 0
+        O[node] = temp_outside
     return O
 

@@ -8,6 +8,7 @@ from misc.helper import load_parse_trees
 import operator
 import time
 import pickle
+from pickle import UnpicklingError
 from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
 
 
@@ -59,3 +60,11 @@ def extend_forest_with_rules_by_rhs(forest: CFG):
             by_rhs[rhs_node].append(rule)
     forest._rules_by_rhs = by_rhs
 
+def read_pickle_objects(file_path):
+    f = open(file_path, "rb")
+    while True:
+        try:
+            yield pickle.load(f)
+        except (EOFError, UnpicklingError):
+            break
+    f.close()

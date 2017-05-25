@@ -3,6 +3,7 @@ from lib.libitg import CFG
 from toposort import toposort
 import numpy as np
 from misc.log import Log
+from misc.utils import read_pickle_objects
 import time
 import pickle
 from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
@@ -70,9 +71,9 @@ def top_sort(forest: CFG) -> list:
 
 def traverse_back_pointers(back_pointers, start_node, terminals_decoration_func=lambda x :x):
     """
-    Recursive traversal of tree by following back-pointers. This logic is used for decoding.
-    Returns a list of terminals in order.
+    Recursive traversal of a tree by following back-pointers. This logic is used for decoding.
     :param terminals_decoration_func: a function that can be used to decorate terminals, e.g. strip spans
+    :return list of terminals in sequential order
     """
     terminals = []
     rule = back_pointers[start_node]
@@ -83,8 +84,7 @@ def traverse_back_pointers(back_pointers, start_node, terminals_decoration_func=
 
 def __traverse(back_pointers, start_node, collector, terminals_decoration_func):
     if start_node.is_terminal():
-        decorated_terminal = terminals_decoration_func(start_node)
-        collector.append(decorated_terminal)
+        collector.append(terminals_decoration_func(start_node))
         return
     rule = back_pointers[start_node]
     for node in rule._rhs:
@@ -95,35 +95,56 @@ def compute_learning_rate(start_learning_rate, step, decay_rate=1 ):
     """
     computes adaptive learning rate that is based on the number of updates already performed.
     """
-    return start_learning_rate/(1.+start_learning_rate*decay_rate*step)
+    return start_learning_rate/(1. + start_learning_rate*decay_rate*step)
 
 
-def evaluate(crf, featurizer, val_data_path):
+def evaluate(crf, featurizer, val_data_path, compute_ll=True, translations_output_file_path=None):
+    """
+    Performs evaluation via BLEU and log-likelihood
+    :param translations_output_file_path: where to write translations in the format < source, translation>
+    """
     all_refs = []
     hypotheses = []
     total_loglikelihood = 0.
     counter = 0.
-    for chinese, references, Dx, Dxys in pickle.load(open(val_data_path, 'rb')):
-        for reference, Dxy in zip(references, Dxys):
-            # there is no way we can compute log-likelihood if Dxy is empty
-            if len(Dxy._rules) == 0:
-                continue
-            counter += 1
-            crf.features = featurizer.featurize_parse_trees(Dx, Dxy, chinese)
-            # compute log-likelihood
-            total_loglikelihood += crf.compute_loglikelihood(source_sentence=chinese, Dxy=Dxy, Dnx=Dx)
+    if translations_output_file_path:
+        translations_output_file = open(translations_output_file_path, 'w')
+    for data in read_pickle_objects(val_data_path):
+        if compute_ll:
+            chinese, references, Dx, Dxys = data
+            for reference, Dxy in zip(references, Dxys):
+                # there is no way we can compute log-likelihood if Dxy is empty
+                if len(Dxy._rules) == 0:
+                    continue
+                counter += 1
+                crf.features = featurizer.featurize_parse_trees(Dx, Dxy, chinese)
+
+                # compute log-likelihood
+                total_loglikelihood += crf.compute_loglikelihood(source_sentence=chinese, Dxy=Dxy, Dnx=Dx)
+        else:
+            chinese, references, Dx = data
         crf.features = featurizer.featurize_parse_trees(Dx, None, chinese)
         viterbi_y = crf.decode_viterbi(source_sentence=chinese, Dnx=Dx)
-        if len(viterbi_y) > 1: # it's 1 because of /usr/local/lib/python3.6/site-packages/nltk/translate/bleu_score.py", line 544
+        # it's 1 because of /usr/local/lib/python3.6/site-packages/nltk/translate/bleu_score.py", line 544
+        if len(viterbi_y) > 1:
             cur_refs = [r.split() for r in references]
             hypotheses.append(viterbi_y)
             all_refs.append(cur_refs)
+            if translations_output_file_path:
+                # write to the file if a path is provided
+                translations_output_file.write("\t".join([chinese, " ".join(viterbi_y)])+"\n")
+    if translations_output_file_path:
+        translations_output_file.close()
     bleu = corpus_bleu(all_refs, hypotheses, smoothing_function=SmoothingFunction().method7)
-    if counter == 0:
-        total_loglikelihood = 0.
+    if compute_ll:
+        if counter == 0:
+            total_loglikelihood = 0.
+        else:
+            total_loglikelihood /= float(counter)
+
+        return bleu, total_loglikelihood
     else:
-        total_loglikelihood /= float(counter)
-    return bleu, total_loglikelihood
+        return bleu
 
 
 
