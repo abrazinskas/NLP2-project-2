@@ -11,8 +11,8 @@ import time
 
 # parameters
 learning_rate = 1e-8
-regul_strength = #01e-1
-epochs = 3
+regul_strength = 1e-1
+epochs = 5
 batch_size = 50
 decay_rate = 100.
 load_params = False
