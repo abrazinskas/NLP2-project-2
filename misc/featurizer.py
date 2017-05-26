@@ -8,10 +8,14 @@ from .features import Features
 
 class Featurizer():
 
-    def __init__(self, ibm1_probs, embeddings_ch, embeddings_en):
+    def __init__(self, ibm1_probs, embeddings_ch, embeddings_en, word_class_features=True, \
+            dense_word_emb_features=True, sparse_word_features=True):
         self.ibm1_probs = ibm1_probs
         self.embeddings_ch = embeddings_ch
         self.embeddings_en = embeddings_en
+        self.word_class_features = word_class_features
+        self.dense_word_emb_features = dense_word_emb_features
+        self.sparse_word_features = sparse_word_features
 
     def featurize_parse_trees_batch(self, batch):
         features = Features()
@@ -110,10 +114,11 @@ class Featurizer():
                     fmap["skip-gram:%s/%s" % (rhs_phrase[i], rhs_phrase[j])] += 1.0
 
             # Add skip-gram word class features for the rhs.
-            rhs_word_classes = [self.embeddings_ch.get_cluster_id(word) for word in rhs_phrase]
-            for i in range(len(rhs_word_classes)):
-                for j in range(i+1, len(rhs_word_classes)):
-                    fmap["skip-gram:word-classes:%d/%d" % (rhs_word_classes[i], rhs_word_classes[j])] += 1.0
+            if self.word_class_features:
+                rhs_word_classes = [self.embeddings_ch.get_cluster_id(word) for word in rhs_phrase]
+                for i in range(len(rhs_word_classes)):
+                    for j in range(i+1, len(rhs_word_classes)):
+                        fmap["skip-gram:word-classes:%d/%d" % (rhs_word_classes[i], rhs_word_classes[j])] += 1.0
 
             # Add source span length features.
             source_span_len = lhs_end - lhs_start
@@ -137,16 +142,19 @@ class Featurizer():
             fmap["ibm1:del:logprob"] += np.log(self.ibm1_probs[(src_word, "-EPS-")] + 1e-10)
 
             # Sparse deletion feature for specific words.
-            fmap["del:%s" % src_word] += 1.0
+            if self.sparse_word_features:
+                fmap["del:%s" % src_word] += 1.0
 
             # Sparse deletion feature for word classes.
-            src_class = self.embeddings_ch.get_cluster_id(src_word)
-            fmap["del:class:%d" % src_class] += 1.0
+            if self.word_class_features and self.sparse_word_features:
+                src_class = self.embeddings_ch.get_cluster_id(src_word)
+                fmap["del:class:%d" % src_class] += 1.0
 
             # Word embeddings for deletion.
-            ch_emb = self.embeddings_ch.get(src_word)
-            for i in range(self.embeddings_ch.dim()):
-                fmap["del:emb:dim-%d" % i] = ch_emb[i]
+            if self.dense_word_emb_features:
+                ch_emb = self.embeddings_ch.get(src_word)
+                for i in range(self.embeddings_ch.dim()):
+                    fmap["del:emb:dim-%d" % i] = ch_emb[i]
 
         elif lhs_symbol == Nonterminal("I"):
             # Insertion of a target word.
@@ -158,16 +166,19 @@ class Featurizer():
             fmap["ibm1:ins:logprob"] += np.log(self.ibm1_probs[("-EPS-", tgt_word)] + 1e-10)
 
             # Sparse insertion feature for specific target words.
-            fmap["ins:%s" % tgt_word] += 1.0
+            if self.sparse_word_features:
+                fmap["ins:%s" % tgt_word] += 1.0
 
             # Sparse insertion feature for word classes.
-            tgt_class = self.embeddings_en.get_cluster_id(tgt_word)
-            fmap["ins:class:%d" % tgt_class]
+            if self.word_class_features and self.sparse_word_features:
+                tgt_class = self.embeddings_en.get_cluster_id(tgt_word)
+                fmap["ins:class:%d" % tgt_class]
 
             # Word embedding for insertion.
-            en_emb = self.embeddings_en.get(tgt_word)
-            for i in range(self.embeddings_ch.dim()):
-                fmap["ins:emb:dim-%d" % i] = en_emb[i]
+            if self.dense_word_emb_features:
+                en_emb = self.embeddings_en.get(tgt_word)
+                for i in range(self.embeddings_ch.dim()):
+                    fmap["ins:emb:dim-%d" % i] = en_emb[i]
 
         elif lhs_symbol == Nonterminal("T"):
             # Translation of a source word into a target word.
@@ -183,15 +194,18 @@ class Featurizer():
                 self.ibm1_probs[(tgt_word, src_word)] + 1e-10) + 1e-10)
 
             # Sparse word translation features.
-            fmap["trans:%s/%s" % (src_word, tgt_word)] += 1.0
+            if self.sparse_word_features:
+                fmap["trans:%s/%s" % (src_word, tgt_word)] += 1.0
 
             # Sparse word class translation features.
-            src_class = self.embeddings_ch.get_cluster_id(src_word)
-            tgt_class = self.embeddings_en.get_cluster_id(tgt_word)
-            fmap["trans:class:%d/%d" % (src_class, tgt_class)] += 1.0
+            if self.word_class_features and self.sparse_word_features:
+                src_class = self.embeddings_ch.get_cluster_id(src_word)
+                tgt_class = self.embeddings_en.get_cluster_id(tgt_word)
+                fmap["trans:class:%d/%d" % (src_class, tgt_class)] += 1.0
 
             # Word embeddings of translation pairs.
-            ch_emb = self.embeddings_ch.get(src_word)
-            en_emb = self.embeddings_en.get(tgt_word)
-            for i in range(self.embeddings_ch.dim()):
-                fmap["trans:emb:dim-%d" % i] = ch_emb[i] - en_emb[i]
+            if self.dense_word_emb_features:
+                ch_emb = self.embeddings_ch.get(src_word)
+                en_emb = self.embeddings_en.get(tgt_word)
+                for i in range(self.embeddings_ch.dim()):
+                    fmap["trans:emb:dim-%d" % i] = ch_emb[i] - en_emb[i]
