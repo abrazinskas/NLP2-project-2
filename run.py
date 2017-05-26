@@ -1,7 +1,7 @@
 # this file contains an example how to run the model
 import os
 from models.CRF import CRF
-from misc.helper import load_ibm1_probs, load_lexicon, load_dev_data
+from misc.helper import load_ibm1_probs
 from misc.utils import extend_forest_with_rules_by_rhs, create_batches, get_run_var
 from misc.featurizer import Featurizer
 from misc.embeddings import WordEmbeddings
@@ -10,14 +10,15 @@ from misc.support import evaluate
 import time
 
 # parameters
-learning_rate = 1e-5
-regul_strength = 1e1
-epochs = 5
+learning_rate = 1e-8
+regul_strength = #01e-1
+epochs = 3
 batch_size = 50
-decay_rate = 1000.
+decay_rate = 100.
+load_params = False
 
 # paths
-parse_tree_dir = "data/train_small/"  # format:[ source, target, Dx, Dxy, Dnx]
+parse_tree_dir = "data/train_top25/"  # format:[ source, target, Dx, Dxy, Dnx]
 ibm1_probs_file_path = "data/lexicon"
 embeddings_dir = "data/embeddings/"
 word_embeddings_ch_file_path = os.path.join(embeddings_dir, "zh.pkl")
@@ -26,8 +27,10 @@ word_clusters_ch_file_path = os.path.join(embeddings_dir, "clusters.zh")
 word_clusters_en_file_path = os.path.join(embeddings_dir, "clusters.en")
 output_folder_path = "output/"
 output_folder_path = os.path.join(output_folder_path, str(get_run_var(output_folder_path)))
-val_data_path = "data/val/parses_max_10_top_5.pkl"
-test_data_path = "data/test/parses_max_10_top_5.pkl"
+val_data_path = "data/val/parses_max_5_top_25.pkl"
+test_data_path = "data/test/parses_top_25.pkl"
+translations_file_path = os.path.join(output_folder_path, "translations.txt")
+params_file_path = "output/21/params.pkl"
 
 
 # loading extra params for the model
@@ -39,19 +42,21 @@ log = Log(output_folder_path)
 
 # write experimental setup
 log.write("EXPERIMENTAL SETUP: ")
-log.write("parse_tree_dir %s" % parse_tree_dir)
-log.write("lexicon_file_path %s" % ibm1_probs_file_path)
-log.write("learning rate %f" % learning_rate)
-log.write("regul. strength %f" % regul_strength)
-log.write("batch size %d" % batch_size)
-log.write("decay rate %f" % decay_rate)
+log.write("parse_tree_dir: %s" % parse_tree_dir)
+log.write("lexicon_file_path: %s" % ibm1_probs_file_path)
+log.write("learning rate: %f" % learning_rate)
+log.write("regul. strength: %f" % regul_strength)
+log.write("batch size: %d" % batch_size)
+log.write("decay rate: %f" % decay_rate)
+log.write("load params? : %r" % load_params)
 log.write("-------------------------------")
 
 
-
 featurizer = Featurizer(ibm1_probs, embeddings_ch, embeddings_en)
-
 crf = CRF(learning_rate=learning_rate, regul_strength=regul_strength, decay_rate=decay_rate)
+# load params if set
+if load_params:
+    crf.load_parameters(params_file_path)
 
 for epoch in range(1, epochs+1):
     start = time.time()
@@ -64,43 +69,25 @@ for epoch in range(1, epochs+1):
             extend_forest_with_rules_by_rhs(Dx)
             extend_forest_with_rules_by_rhs(Dxy)
 
-        # load featurizer ( TODO: make a simple function call in the class itself )
+        # load features ( TODO: make a simple function call in the class itself )
         crf.features = featurizer.featurize_parse_trees_batch(batch)
-
-        # log.write('using data from batch # %d' % (j+1))
-        # ll_before = crf.compute_loglikelihood(source_sentence=chinese, Dxy=Dxy, Dnx=Dx)
-        # ll_before = crf.compute_loglikelihood_batch(batch=batch)
-        # log.write("log-likelihood before %f" % ll_before)
-
         crf.train_batch(batch=batch)
 
-        # ll_after = crf.compute_loglikelihood_batch(batch=batch)
-        # log.write("log-likelihood after %f" % ll_after)
-        # log.write("-------------------------------")
 
+        ll_after = crf.compute_loglikelihood_batch(batch=batch)
+        log.write("batch's #%d log-likelihood is: %f" % (j+1, ll_after))
 
     val_bleu, val_loglikelihood = evaluate(crf, featurizer, val_data_path)
-
     log.write("validation BLEU is: %f" % val_bleu)
     log.write("validation log-likelihood is: %f" % (val_loglikelihood))
 
     end = time.time()
     log.write("epoch completed in %f minutes " % ((end - start)/60.0))
 
-#
-# # perform inference and save in a file
-# translations_file = open(os.path.join(output_folder_path, "translations.txt"), 'w')
-# print('performing inference')
-# for j, batch in enumerate(create_batches(parse_tree_dir, batch_size=batch_size)):
-#     # load featurizer TODO: ( make a simple function call in the class itself )
-#     crf.features = featurizer.featurize_parse_trees_batch(batch)
-#     for Dx, Dxy, chinese, english in batch:
-#         terminals = crf.decode_viterbi(source_sentence=chinese, Dnx=Dx)
-#         translations_file.write("\t".join([english, chinese, " ".join(terminals)])+"\n")
-# translations_file.close()
-# print('done')
-#
-#
-#
 
+# Finally evaluate on test set
+test_bleu = evaluate(crf, featurizer, test_data_path, compute_ll=False, translations_output_file_path=translations_file_path)
+log.write("test BLEU is: %f" % test_bleu)
 
+# save params into a folder
+crf.save_parameters(output_folder_path)

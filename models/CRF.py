@@ -22,6 +22,7 @@ class CRF():
         self.regul_strength = regul_strength
         self.decay_rate = decay_rate
         self.current_step = 0  # track how many times we've updated our parameters
+        self.params_to_save = ['parameters']
 
     def compute_gradient(self, source_sentence, Dxy, Dnx):
         src_fsa = libitg.make_fsa(source_sentence)
@@ -137,7 +138,7 @@ class CRF():
         root_node = sorted_nodes[-1]
         _, back_pointers = viterbi_decoding(Dnx, sorted_nodes, edge_weights)
 
-        # create decoration function, and traverse back pointers recursively
+        # create a decoration function, and traverse back pointers recursively
         terminals_decoration_func = lambda x: x._symbol._symbol
         terminals = traverse_back_pointers(back_pointers, root_node, terminals_decoration_func)
         # do cleaning by excluding unwanted terminals
