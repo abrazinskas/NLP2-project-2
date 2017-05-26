@@ -131,7 +131,6 @@ class Featurizer():
         if lhs_symbol == Nonterminal("D"):
             # Deletion of a source word.
             fmap["type:deletion"] += 1.0
-            fmap["target-len"] -= 1.0
 
             # IBM 1 deletion probabilities.
             src_word = get_source_word(src_fsa, lhs_start, lhs_end)
