@@ -140,9 +140,14 @@ class Featurizer():
             # Sparse deletion feature for specific words.
             fmap["del:%s" % src_word] += 1.0
 
-            # Sparse insertion feature for word classes.
+            # Sparse deletion feature for word classes.
             src_class = self.embeddings_ch.get_cluster_id(src_word)
-            fmap["del-class:%d" % src_class] += 1.0
+            fmap["del:class:%d" % src_class] += 1.0
+
+            # Word embeddings for deletion.
+            ch_emb = self.embeddings_ch.get(src_word)
+            for i in range(self.embeddings_ch.dim()):
+                fmap["del:emb:dim-%d" % i] = ch_emb[i]
 
         elif lhs_symbol == Nonterminal("I"):
             # Insertion of a target word.
@@ -158,7 +163,12 @@ class Featurizer():
 
             # Sparse insertion feature for word classes.
             tgt_class = self.embeddings_en.get_cluster_id(tgt_word)
-            fmap["ins-class:%d" % tgt_class]
+            fmap["ins:class:%d" % tgt_class]
+
+            # Word embedding for insertion.
+            en_emb = self.embeddings_en.get(tgt_word)
+            for i in range(self.embeddings_ch.dim()):
+                fmap["ins:emb:dim-%d" % i] = en_emb[i]
 
         elif lhs_symbol == Nonterminal("T"):
             # Translation of a source word into a target word.
@@ -179,4 +189,10 @@ class Featurizer():
             # Sparse word class translation features.
             src_class = self.embeddings_ch.get_cluster_id(src_word)
             tgt_class = self.embeddings_en.get_cluster_id(tgt_word)
-            fmap["trans-class:%d/%d" % (src_class, tgt_class)] += 1.0
+            fmap["trans:class:%d/%d" % (src_class, tgt_class)] += 1.0
+
+            # Word embeddings of translation pairs.
+            ch_emb = self.embeddings_ch.get(src_word)
+            en_emb = self.embeddings_en.get(tgt_word)
+            for i in range(self.embeddings_ch.dim()):
+                fmap["trans:emb:dim-%d" % i] = ch_emb[i] - en_emb[i]
